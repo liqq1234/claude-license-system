@@ -707,4 +707,196 @@ router.post('/verify-code', async (req, res) => {
   }
 })
 
+/**
+ * @swagger
+ * /auth/forgot-password:
+ *   post:
+ *     tags: [认证]
+ *     summary: 忘记密码 - 发送重置验证码
+ *     description: 向用户邮箱发送密码重置验证码
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: 用户邮箱地址
+ *                 example: "user@example.com"
+ *     responses:
+ *       200:
+ *         description: 验证码发送成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: integer
+ *                   example: 0
+ *                 message:
+ *                   type: string
+ *                   example: "密码重置验证码已发送到您的邮箱"
+ */
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body
+
+    // 参数验证
+    if (!email) {
+      return res.json({
+        status: errors.INVALID_INPUT,
+        message: '邮箱地址不能为空'
+      })
+    }
+
+    // 邮箱格式验证
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return res.json({
+        status: errors.INVALID_INPUT,
+        message: '邮箱格式不正确'
+      })
+    }
+
+    // 检查用户是否存在
+    const userExists = await userService.checkUserExists(email)
+    if (!userExists) {
+      return res.json({
+        status: errors.USER_NOT_FOUND,
+        message: '该邮箱未注册'
+      })
+    }
+
+    // 发送密码重置验证码
+    await userService.sendVerificationCode(email, 'reset_password')
+
+    res.json({
+      status: 0,
+      message: '密码重置验证码已发送到您的邮箱，请查收'
+    })
+
+  } catch (error) {
+    logger.error('发送密码重置验证码失败:', error)
+    res.json({
+      status: errors.INTERNAL_ERROR,
+      message: '发送验证码失败，请稍后重试'
+    })
+  }
+})
+
+/**
+ * @swagger
+ * /auth/reset-password:
+ *   post:
+ *     tags: [认证]
+ *     summary: 重置密码
+ *     description: 使用验证码重置用户密码
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - verificationCode
+ *               - newPassword
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: 用户邮箱地址
+ *                 example: "user@example.com"
+ *               verificationCode:
+ *                 type: string
+ *                 description: 邮箱验证码
+ *                 example: "123456"
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 6
+ *                 description: 新密码
+ *                 example: "newpassword123"
+ *     responses:
+ *       200:
+ *         description: 密码重置成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: integer
+ *                   example: 0
+ *                 message:
+ *                   type: string
+ *                   example: "密码重置成功，请使用新密码登录"
+ */
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, verificationCode, newPassword } = req.body
+
+    // 参数验证
+    if (!email || !verificationCode || !newPassword) {
+      return res.json({
+        status: errors.INVALID_INPUT,
+        message: '邮箱、验证码和新密码不能为空'
+      })
+    }
+
+    // 邮箱格式验证
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return res.json({
+        status: errors.INVALID_INPUT,
+        message: '邮箱格式不正确'
+      })
+    }
+
+    // 密码强度验证
+    if (newPassword.length < 6) {
+      return res.json({
+        status: errors.INVALID_INPUT,
+        message: '新密码长度不能少于6个字符'
+      })
+    }
+
+    // 验证验证码
+    const codeValid = await userService.verifyCode(email, verificationCode, 'reset_password')
+    if (!codeValid) {
+      return res.json({
+        status: errors.INVALID_CODE,
+        message: '验证码无效或已过期'
+      })
+    }
+
+    // 重置密码
+    const result = await userService.resetPassword(email, newPassword)
+
+    if (result.success) {
+      res.json({
+        status: 0,
+        message: '密码重置成功，请使用新密码登录'
+      })
+    } else {
+      res.json({
+        status: errors.INTERNAL_ERROR,
+        message: result.message || '密码重置失败'
+      })
+    }
+
+  } catch (error) {
+    logger.error('密码重置失败:', error)
+    res.json({
+      status: errors.INTERNAL_ERROR,
+      message: '密码重置失败，请稍后重试'
+    })
+  }
+})
+
 module.exports = router

@@ -569,6 +569,114 @@ class UserService {
       }
     }
   }
+
+  /**
+   * 检查用户是否存在
+   */
+  async checkUserExists(email) {
+    try {
+      const user = await User.findOne({
+        where: { email }
+      })
+      return !!user
+    } catch (error) {
+      logger.error('检查用户存在性失败:', error)
+      return false
+    }
+  }
+
+  /**
+   * 重置用户密码
+   */
+  async resetPassword(email, newPassword) {
+    try {
+      // 1. 查找用户
+      const user = await User.findOne({
+        where: { email }
+      })
+
+      if (!user) {
+        return {
+          success: false,
+          message: '用户不存在'
+        }
+      }
+
+      // 2. 加密新密码
+      const saltRounds = 10
+      const hashedPassword = await bcrypt.hash(newPassword, saltRounds)
+
+      // 3. 更新密码
+      await user.update({
+        password: hashedPassword,
+        updated_at: new Date()
+      })
+
+      // 4. 记录操作日志
+      await OperationLog.create({
+        user_id: user.id,
+        operation_type: 'password_reset',
+        operation_details: {
+          email: email,
+          timestamp: new Date(),
+          ip_address: 'system'
+        },
+        ip_address: 'system',
+        user_agent: 'password_reset_system'
+      })
+
+      // 5. 删除该用户所有的密码重置验证码（防止重复使用）
+      await EmailVerificationCode.destroy({
+        where: {
+          email: email,
+          type: 'reset_password'
+        }
+      })
+
+      logger.info(`用户 ${email} 密码重置成功`)
+
+      return {
+        success: true,
+        message: '密码重置成功'
+      }
+
+    } catch (error) {
+      logger.error('重置密码失败:', error)
+      return {
+        success: false,
+        message: '密码重置失败，请稍后重试'
+      }
+    }
+  }
+
+  /**
+   * 验证验证码（支持不同类型）
+   */
+  async verifyCode(email, code, type = 'register') {
+    try {
+      const verificationRecord = await EmailVerificationCode.findOne({
+        where: {
+          email: email,
+          code: code,
+          type: type,
+          expires_at: {
+            [Op.gt]: new Date()
+          }
+        }
+      })
+
+      if (verificationRecord) {
+        // 验证成功后删除验证码（一次性使用）
+        await verificationRecord.destroy()
+        return true
+      }
+
+      return false
+    } catch (error) {
+      logger.error('验证码验证失败:', error)
+      return false
+    }
+  }
 }
 
 module.exports = UserService

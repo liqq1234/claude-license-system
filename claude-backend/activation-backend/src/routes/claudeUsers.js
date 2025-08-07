@@ -10,6 +10,65 @@ const { body } = require('express-validator')
 const logger = require('../utils/logger')
 
 /**
+ * 验证用户访问权限 - 前端频繁调用的核心API
+ */
+router.get('/validate-access', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    logger.info(`用户 ${userId} 请求验证访问权限`);
+
+    // 验证用户会员状态
+    const userMembership = req.user.membership;
+    const currentTime = new Date();
+
+    if (!userMembership || !userMembership.membership_expires_at) {
+      return res.json({
+        status: 0,
+        data: {
+          hasAccess: false,
+          reason: 'no_membership',
+          message: '用户未激活会员'
+        }
+      });
+    }
+
+    const expiresAt = new Date(userMembership.membership_expires_at);
+    const isValidMembership = expiresAt > currentTime;
+
+    if (!isValidMembership) {
+      return res.json({
+        status: 0,
+        data: {
+          hasAccess: false,
+          reason: 'membership_expired',
+          message: '会员已过期',
+          expiresAt: expiresAt.toISOString()
+        }
+      });
+    }
+
+    // 返回有效的访问权限
+    res.json({
+      status: 0,
+      data: {
+        hasAccess: true,
+        expiresAt: expiresAt.toISOString(),
+        membershipType: userMembership.membership_type || 'premium',
+        remainingDays: Math.ceil((expiresAt - currentTime) / (1000 * 60 * 60 * 24))
+      }
+    });
+
+  } catch (error) {
+    logger.error('验证访问权限失败:', error);
+    res.status(500).json({
+      status: 1,
+      message: '验证访问权限时发生错误'
+    });
+  }
+});
+
+/**
  * 获取Claude用户列表
  */
 router.get('/users', authenticateToken, async (req, res) => {
@@ -33,34 +92,6 @@ router.get('/users', authenticateToken, async (req, res) => {
       });
     }
 
-    // 模拟从pool-backend获取用户列表
-    // 在实际实现中，这里应该调用pool-backend的API
-    const claudeUsers = [
-      {
-        id: 'claude_user_1',
-        email: 'claude.ai.user1@example.com',
-        name: 'Claude AI User 1',
-        status: 'active',
-        avatar: null,
-        sessionKey: 'sk-ant-api03-...' // 实际使用时这个不会返回给前端
-      },
-      {
-        id: 'claude_user_2',
-        email: 'claude.ai.user2@example.com',
-        name: 'Claude AI User 2',
-        status: 'active',
-        avatar: null,
-        sessionKey: 'sk-ant-api03-...'
-      },
-      {
-        id: 'claude_user_3',
-        email: 'claude.ai.user3@example.com',
-        name: 'Claude AI User 3',
-        status: 'offline',
-        avatar: null,
-        sessionKey: 'sk-ant-api03-...'
-      }
-    ];
 
     // 过滤掉敏感信息，只返回前端需要的数据
     const safeUserList = claudeUsers.map(user => ({

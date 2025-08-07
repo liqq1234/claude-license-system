@@ -960,28 +960,7 @@ class HybridStorageService {
       } else {
         logger.warn('⚠️ Redis 不可用，无法缓存统计数据')
 
-        // 使用 console.log 确保信息完整显示
-        console.log('🔍 Redis 详细状态检查:')
-        console.log('  - redis 对象存在:', !!this.redis)
-        console.log('  - redis.redis 存在:', !!(this.redis && this.redis.redis))
-        console.log('  - setex 方法类型:', this.redis && this.redis.redis ? typeof this.redis.redis.setex : 'undefined')
-
-        if (this.redis) {
-          console.log('  - Redis 对象属性:', Object.getOwnPropertyNames(this.redis))
-          console.log('  - Redis 对象键:', Object.keys(this.redis))
-
-          // 检查 redis.db 属性
-          if (this.redis.db) {
-            console.log('  - Redis.db 存在，类型:', typeof this.redis.db)
-            console.log('  - Redis.db.setex 方法:', typeof this.redis.db.setex)
-          }
-
-          // 检查其他可能的属性
-          if (this.redis.client) {
-            console.log('  - Redis.client 存在，类型:', typeof this.redis.client)
-            console.log('  - Redis.client.setex 方法:', typeof this.redis.client.setex)
-          }
-        }
+        // Redis 连接状态检查已记录到日志
       }
     } catch (error) {
       logger.warn('❌ 缓存统计数据失败:', error.message)

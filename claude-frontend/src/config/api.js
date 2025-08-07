@@ -45,9 +45,7 @@ export const checkEnvironment = () => {
     claudePool: API_ENDPOINTS.CLAUDE_POOL.baseURL,
     environment: import.meta.env.MODE || 'development'
   }
-  
-  console.log('🔧 API配置信息:', config)
-  
+    
   return config
 }
 

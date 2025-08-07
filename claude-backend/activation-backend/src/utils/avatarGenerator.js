@@ -100,7 +100,6 @@ function generateRandomAvatar(identifier) {
 
     return url
   } catch (error) {
-    console.error('生成首字母头像失败，使用默认头像:', error)
     // 如果生成失败，返回默认头像
     return 'https://api.dicebear.com/7.x/initials/svg?seed=U&backgroundColor=4ECDC4&backgroundType=solid&fontSize=36&fontWeight=600&textColor=ffffff'
   }

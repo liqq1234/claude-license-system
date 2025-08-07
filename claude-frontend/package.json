@@ -7,7 +7,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "start:all": "powershell -ExecutionPolicy Bypass -File start-all.ps1",
-    "health-check": "node -e \"import('./src/config/api.js').then(api => api.healthCheck())\""
+    "health-check": "node -e \"import('./src/config/api.js').then(api => api.healthCheck())\"",
+    "lint": "eslint . --ext .vue,.js,.ts",
+    "lint:fix": "eslint . --ext .vue,.js,.ts --fix"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",

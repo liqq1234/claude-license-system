@@ -14,6 +14,7 @@ const proxyApiRouter = require('./routes/proxy');
 const adminApiRouter = require('./routes/admin');
 const claudeProxyRouter = require('./routes/claudeProxy');
 const claudeUsersRouter = require('./routes/claudeUsers');
+const poolProxyRouter = require('./routes/poolProxy');
 const { swaggerUi, specs } = require('./config/swagger');
 
 const app = express();
@@ -67,6 +68,7 @@ app.use('/api/proxy', proxyApiRouter);
 app.use('/api/admin', adminApiRouter);
 app.use('/api/proxy/claude', claudeProxyRouter);
 app.use('/api/claude', claudeUsersRouter);
+app.use('/api/pool', poolProxyRouter);
 app.get('/', (req, res) => res.redirect('/status'))
 app.get('/status', (req, res) => res.json({status: 0}))
 
@@ -78,5 +80,3 @@ app.use((err, req, res, next) => {
 })
 
 module.exports = app;
-
-

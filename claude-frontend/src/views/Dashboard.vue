@@ -434,7 +434,7 @@
     </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
@@ -578,11 +578,6 @@ const handleChangeEmail = () => {
     };
 };
 
-// 跳转到激活码页面
-const goToActivation = () => {
-    router.push("/activation");
-};
-
 // 获取兑换记录
 const fetchRedemptionRecords = async () => {
     try {
@@ -602,8 +597,7 @@ const fetchRedemptionRecords = async () => {
                 })
             );
         }
-    } catch (error) {
-        console.error("获取兑换记录失败:", error);
+    } catch {
         ElMessage.error("获取兑换记录失败");
     }
 };
@@ -673,8 +667,8 @@ const handleRedeem = async () => {
             // 刷新兑换记录
             await fetchRedemptionRecords();
         }
-    } catch (error) {
-        console.error("兑换失败:", error);
+    } catch {
+        // 兑换失败，已通过ElMessage显示错误信息
     }
 };
 
@@ -689,19 +683,16 @@ const handleLogout = async () => {
 
 // 头像加载错误处理
 const handleAvatarError = () => {
-    console.log("头像加载失败，显示用户名首字母");
-    // el-avatar 会自动显示 slot 中的内容（用户名首字母）
+    // 头像加载失败时，el-avatar 会自动显示 slot 中的内容（用户名首字母）
 };
 
 // 获取账号列表
 const fetchAccounts = async () => {
-    console.log("🔍 Dashboard: 开始获取账号列表...");
     loading.value = true;
     error.value = false;
 
     try {
         const response = await claudeUsersService.getUserList();
-        console.log("📨 Dashboard: 收到响应:", response);
 
         if (response.status === 0 && response.data) {
             accounts.value = response.data.map((user) => ({
@@ -711,12 +702,10 @@ const fetchAccounts = async () => {
                 status: user.status || "active",
                 avatar: user.avatar || null,
             }));
-            console.log("✅ Dashboard: 账号列表加载成功:", accounts.value);
         } else {
             throw new Error(response.message || "获取账号列表失败");
         }
     } catch (err) {
-        console.error("❌ Dashboard: 获取账号列表失败:", err);
         error.value = true;
         ElMessage.error("获取账号列表失败: " + err.message);
     } finally {
@@ -726,25 +715,20 @@ const fetchAccounts = async () => {
 
 // 刷新账号列表
 const refreshAccounts = () => {
-    console.log("🔄 Dashboard: 刷新账号列表");
     fetchAccounts();
 };
 
 // 随机登录
 const handleRandomLogin = async () => {
-    console.log("🎲 Dashboard: 随机登录");
-
     try {
         // 1. 首先验证用户的激活码是否过期
-        console.log("验证用户激活码状态...");
+
         const accessResult = await claudeUsersService.validateUserAccess();
 
         if (!accessResult.data || !accessResult.data.hasAccess) {
             ElMessage.warning("您的激活码已过期或无效，请重新激活");
             return;
         }
-
-        console.log("✅ 激活码验证通过，开始随机登录...");
 
         // 2. 调用pool-backend的随机登录接口
         const poolApiUrl =
@@ -770,7 +754,6 @@ const handleRandomLogin = async () => {
         }
 
         const loginData = await loginResponse.json();
-        console.log("📨 Pool-backend随机登录响应:", loginData);
 
         // 优先使用 chat_url（直接聊天），如果没有则使用 login_url
         const targetUrl = loginData.chat_url || loginData.login_url;
@@ -793,8 +776,6 @@ const handleRandomLogin = async () => {
             throw new Error("未获取到聊天链接");
         }
     } catch (err) {
-        console.error("❌ Dashboard: 随机登录失败:", err);
-
         // 根据错误类型显示不同的提示
         if (err.message.includes("过期") || err.message.includes("expired")) {
             ElMessage.error("您的激活码已过期，请重新激活");
@@ -816,30 +797,17 @@ const handleRandomLogin = async () => {
 
 // 处理账号点击
 const handleAccountClick = async (account) => {
-    console.log("🎯 Dashboard: 点击账号:", account);
-
     try {
         // 1. 首先验证用户的激活码是否过期
-        console.log("🔍 验证用户激活码状态...");
+
         const accessResult = await claudeUsersService.validateUserAccess();
 
-        // 详细输出 accessResult 的信息
-        console.log("📊 accessResult 详细信息:");
-        console.log("- 完整对象:", accessResult);
-        console.log("- JSON字符串:", JSON.stringify(accessResult, null, 2));
-        console.log("- 类型:", typeof accessResult);
-        console.log("- hasAccess:", accessResult?.hasAccess);
-        console.log("- status:", accessResult?.status);
-        console.log("- data:", accessResult?.data);
-        console.log("- message:", accessResult?.message);
+        // 验证访问权限
 
         if (!accessResult.data || !accessResult.data.hasAccess) {
-            console.log("❌ 权限验证失败，hasAccess为false");
             ElMessage.warning("您的激活码已过期或无效，请重新激活");
             return;
         }
-
-        console.log("✅ 激活码验证通过，开始生成登录链接...");
 
         // 2. 调用pool-backend的用户登录接口，指定账号登录
         const poolApiUrl =
@@ -866,7 +834,6 @@ const handleAccountClick = async (account) => {
         }
 
         const loginData = await loginResponse.json();
-        console.log("📨 Pool-backend登录响应:", loginData);
 
         // 优先使用 chat_url（直接聊天），如果没有则使用 login_url
         const targetUrl = loginData.chat_url || loginData.login_url;
@@ -889,8 +856,6 @@ const handleAccountClick = async (account) => {
             throw new Error("未获取到聊天链接");
         }
     } catch (err) {
-        console.error("❌ Dashboard: 账号登录失败:", err);
-
         // 根据错误类型显示不同的提示
         if (err.message.includes("过期") || err.message.includes("expired")) {
             ElMessage.error("您的激活码已过期，请重新激活");
@@ -918,7 +883,6 @@ const handleClickOutside = (event) => {
 };
 
 onMounted(() => {
-    console.log("🚀 Dashboard: 组件已挂载，开始初始化...");
     document.addEventListener("click", handleClickOutside);
 
     // 初始化时获取会员状态和兑换记录

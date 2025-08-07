@@ -424,4 +424,71 @@ router.get('/analytics/trends',
   }
 )
 
+// ========== 管理员统计API ==========
+
+// 获取系统统计数据
+router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const stats = await activationService.getSystemStats()
+
+    res.json({
+      status: 0,
+      message: '获取统计数据成功',
+      data: stats
+    })
+  } catch (error) {
+    logger.error('获取统计数据失败:', error)
+    res.status(500).json({
+      status: 1,
+      message: error.message || '获取统计数据失败'
+    })
+  }
+})
+
+// 获取图表数据
+router.get('/chart-data', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const chartData = await activationService.getChartData()
+
+    res.json({
+      status: 0,
+      message: '获取图表数据成功',
+      data: chartData
+    })
+  } catch (error) {
+    logger.error('获取图表数据失败:', error)
+    res.status(500).json({
+      status: 1,
+      message: error.message || '获取图表数据失败'
+    })
+  }
+})
+
+// 获取激活码列表（支持分页和筛选）
+router.get('/codes', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status, type, search } = req.query
+
+    const codes = await activationService.getActivationCodesList({
+      page: parseInt(page),
+      limit: parseInt(limit),
+      status,
+      type,
+      search
+    })
+
+    res.json({
+      status: 0,
+      message: '获取激活码列表成功',
+      data: codes
+    })
+  } catch (error) {
+    logger.error('获取激活码列表失败:', error)
+    res.status(500).json({
+      status: 1,
+      message: error.message || '获取激活码列表失败'
+    })
+  }
+})
+
 module.exports = router

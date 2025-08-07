@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 // 路由组件懒加载
 const Login = () => import('@/views/auth/Login.vue')
 const Register = () => import('@/views/auth/Register.vue')
+const ForgotPassword = () => import('@/views/auth/ForgotPassword.vue')
 const Dashboard = () => import('@/views/Dashboard.vue')
 const Profile = () => import('@/views/Profile.vue')
 const ActivationCode = () => import('@/views/activation/ActivationCode.vue')
@@ -26,9 +27,18 @@ const routes = [
     path: '/register',
     name: 'Register',
     component: Register,
-    meta: { 
+    meta: {
       requiresGuest: true,
       title: '用户注册'
+    }
+  },
+  {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: ForgotPassword,
+    meta: {
+      requiresGuest: true,
+      title: '找回密码'
     }
   },
   {

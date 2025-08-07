@@ -608,7 +608,7 @@ class UserService {
 
       // 3. 更新密码
       await user.update({
-        password: hashedPassword,
+        password_hash: hashedPassword,
         updated_at: new Date()
       })
 
@@ -675,6 +675,73 @@ class UserService {
     } catch (error) {
       logger.error('验证码验证失败:', error)
       return false
+    }
+  }
+
+  /**
+   * 用户修改密码（需要验证当前密码）
+   */
+  async changePassword(userId, currentPassword, newPassword) {
+    try {
+      // 1. 查找用户
+      const user = await User.findByPk(userId)
+
+      if (!user) {
+        return {
+          success: false,
+          code: errors.NOT_FOUND,
+          message: '用户不存在'
+        }
+      }
+
+      // 2. 验证当前密码
+      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash)
+      if (!isCurrentPasswordValid) {
+        return {
+          success: false,
+          code: errors.INVALID_CREDENTIALS,
+          message: '当前密码错误'
+        }
+      }
+
+      // 3. 检查新密码是否与当前密码相同
+      const isSamePassword = await bcrypt.compare(newPassword, user.password_hash)
+      if (isSamePassword) {
+        return {
+          success: false,
+          code: errors.INVALID_INPUT,
+          message: '新密码不能与当前密码相同'
+        }
+      }
+
+      // 4. 加密新密码
+      const saltRounds = 12
+      const hashedPassword = await bcrypt.hash(newPassword, saltRounds)
+
+      // 5. 更新密码
+      await user.update({
+        password_hash: hashedPassword,
+        updated_at: new Date()
+      })
+
+      // 6. 记录操作日志
+      await this.logOperation(user.id, 'password_change', `用户修改密码: ${user.email}`)
+
+      logger.info(`用户 ${user.email} 修改密码成功`)
+
+      return {
+        success: true,
+        code: errors.SUCCESS,
+        message: '密码修改成功'
+      }
+
+    } catch (error) {
+      logger.error('修改密码失败:', error)
+      return {
+        success: false,
+        code: errors.INTERNAL_ERROR,
+        message: '密码修改失败，请稍后重试'
+      }
     }
   }
 }

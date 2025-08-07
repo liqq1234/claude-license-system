@@ -440,6 +440,7 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { ElMessage } from "element-plus";
 import { claudeUsersService } from "@/api/claude-users";
+import { authApi } from "@/api/auth";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -517,7 +518,7 @@ const profileTabs = [
 const redemptionRecords = ref([]);
 
 // 修改密码
-const handleChangePassword = () => {
+const handleChangePassword = async () => {
     if (
         !passwordForm.value.currentPassword ||
         !passwordForm.value.newPassword ||
@@ -537,16 +538,29 @@ const handleChangePassword = () => {
         return;
     }
 
-    // 模拟API调用
-    ElMessage.success("密码修改成功");
-    showPasswordDialog.value = false;
+    try {
+        // 调用真实的API
+        const response = await authApi.changePassword({
+            currentPassword: passwordForm.value.currentPassword,
+            newPassword: passwordForm.value.newPassword,
+        });
 
-    // 重置表单
-    passwordForm.value = {
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-    };
+        if (response.status === 0) {
+            ElMessage.success("密码修改成功");
+            showPasswordDialog.value = false;
+
+            // 重置表单
+            passwordForm.value = {
+                currentPassword: "",
+                newPassword: "",
+                confirmPassword: "",
+            };
+        } else {
+            ElMessage.error(response.message || "密码修改失败");
+        }
+    } catch (error) {
+        ElMessage.error(error.message || "密码修改失败");
+    }
 };
 
 // 发送验证码

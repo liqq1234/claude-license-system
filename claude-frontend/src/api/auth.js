@@ -89,6 +89,24 @@ export const authApi = {
   verifyCode: async (data) => {
     const response = await api.post('/auth/verify-code', data)
     return response
+  },
+
+  // 忘记密码 - 发送重置验证码
+  forgotPassword: async (email) => {
+    const response = await api.post('/auth/forgot-password', { email })
+    return response
+  },
+
+  // 重置密码
+  resetPassword: async (data) => {
+    const response = await api.post('/auth/reset-password', data)
+    return response
+  },
+
+  // 修改密码（需要登录）
+  changePassword: async (data) => {
+    const response = await api.post('/auth/change-password', data)
+    return response
   }
 }
 

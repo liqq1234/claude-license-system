@@ -5,6 +5,7 @@ const router = express.Router()
 const logger = require('../utils/logger')
 const errors = require('../constants/errors')
 const UserService = require('../services/userService')
+const { authenticateToken } = require('../middleware/auth')
 
 const userService = new UserService()
 
@@ -327,7 +328,8 @@ router.post('/login', async (req, res) => {
  */
 router.post('/logout', async (req, res) => {
   try {
-    const token = req.get('Authorization')?.replace('Bearer ', '')
+    const authHeader = req.get('Authorization')
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null
 
     if (!token) {
       return res.json({
@@ -371,7 +373,8 @@ router.post('/logout', async (req, res) => {
  */
 router.get('/verify', async (req, res) => {
   try {
-    const token = req.get('Authorization')?.replace('Bearer ', '')
+    const authHeader = req.get('Authorization')
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null
 
     if (!token) {
       return res.json({
@@ -391,7 +394,7 @@ router.get('/verify', async (req, res) => {
             id: result.userId,
             username: result.username,
             email: result.email,
-            avatar: result.user?.avatar || null
+            avatar: result.user ? result.user.avatar : null
           }
         }
       })
@@ -475,7 +478,8 @@ router.get('/verify', async (req, res) => {
  */
 router.get('/my-devices', async (req, res) => {
   try {
-    const token = req.get('Authorization')?.replace('Bearer ', '')
+    const authHeader = req.get('Authorization')
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null
 
     if (!token) {
       return res.json({
@@ -535,7 +539,8 @@ router.get('/my-devices', async (req, res) => {
  */
 router.delete('/devices/:deviceId', async (req, res) => {
   try {
-    const token = req.get('Authorization')?.replace('Bearer ', '')
+    const authHeader = req.get('Authorization')
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null
     const { deviceId } = req.params
 
     if (!token) {
@@ -768,18 +773,25 @@ router.post('/forgot-password', async (req, res) => {
     const userExists = await userService.checkUserExists(email)
     if (!userExists) {
       return res.json({
-        status: errors.USER_NOT_FOUND,
+        status: errors.NOT_FOUND,
         message: '该邮箱未注册'
       })
     }
 
     // 发送密码重置验证码
-    await userService.sendVerificationCode(email, 'reset_password')
+    const result = await userService.sendEmailVerificationCode(email, 'reset_password')
 
-    res.json({
-      status: 0,
-      message: '密码重置验证码已发送到您的邮箱，请查收'
-    })
+    if (result.success) {
+      res.json({
+        status: 0,
+        message: '密码重置验证码已发送到您的邮箱，请查收'
+      })
+    } else {
+      res.json({
+        status: result.code,
+        message: result.message
+      })
+    }
 
   } catch (error) {
     logger.error('发送密码重置验证码失败:', error)
@@ -895,6 +907,72 @@ router.post('/reset-password', async (req, res) => {
     res.json({
       status: errors.INTERNAL_ERROR,
       message: '密码重置失败，请稍后重试'
+    })
+  }
+})
+
+/**
+ * @swagger
+ * /auth/change-password:
+ *   post:
+ *     summary: 用户修改密码
+ *     tags: [认证]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 description: 当前密码
+ *               newPassword:
+ *                 type: string
+ *                 description: 新密码
+ *     responses:
+ *       200:
+ *         description: 密码修改结果
+ */
+router.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body
+    const userId = req.user.id
+
+    // 参数验证
+    if (!currentPassword || !newPassword) {
+      return res.json({
+        status: errors.INVALID_INPUT,
+        message: '当前密码和新密码不能为空'
+      })
+    }
+
+    // 新密码强度验证
+    if (newPassword.length < 6) {
+      return res.json({
+        status: errors.INVALID_INPUT,
+        message: '新密码长度不能少于6个字符'
+      })
+    }
+
+    // 调用用户服务修改密码
+    const result = await userService.changePassword(userId, currentPassword, newPassword)
+
+    res.json({
+      status: result.code,
+      message: result.message
+    })
+
+  } catch (error) {
+    logger.error('修改密码接口错误:', error)
+    res.json({
+      status: errors.INTERNAL_ERROR,
+      message: '服务器内部错误'
     })
   }
 })

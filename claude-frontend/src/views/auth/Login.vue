@@ -69,9 +69,13 @@
                                 >{{ loading ? '登录中...' : '登录' }}</button>
                             </form>
 
-                            <!-- 注册链接 -->
-                            <div class="register-section-inline">
-                                <router-link to="/register" class="register-link-inline">还没有账户？立即注册</router-link>
+                            <!-- 注册和忘记密码链接 -->
+                            <div class="auth-links">
+                                <router-link to="/register" class="auth-link">还没有账户？立即注册</router-link>
+                                <router-link
+                                    to="/forgot-password"
+                                    class="auth-link forgot-link"
+                                >忘记密码？</router-link>
                             </div>
                         </div>
 
@@ -353,15 +357,20 @@ onUnmounted(() => {
     gap: 20px;
 }
 
-/* 内联注册链接 */
-.register-section-inline {
+/* 认证链接区域 */
+.auth-links {
     text-align: center;
     margin-top: 16px;
     padding-top: 16px;
     border-top: 1px solid rgb(235, 230, 220);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
-.register-link-inline {
+.auth-link {
     color: #d2691e; /* 巧克力橙色 */
     text-decoration: none;
     font-size: 14px;
@@ -369,9 +378,18 @@ onUnmounted(() => {
     transition: color 0.2s;
 }
 
-.register-link-inline:hover {
+.auth-link:hover {
     color: #b8621a; /* 深巧克力橙 */
     text-decoration: underline;
+}
+
+.forgot-link {
+    color: #8b7d6b; /* 稍微淡一些的颜色 */
+    font-weight: 400;
+}
+
+.forgot-link:hover {
+    color: #d2691e;
 }
 
 /* 表单 */

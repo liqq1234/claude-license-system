@@ -1,0 +1,73 @@
+{
+  "name": "node-license-server",
+  "version": "0.0.5",
+  "description": "license-server implementation for software licensing",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint --plugin markdown --ext js,md .",
+    "start": "node ./index.js",
+    "test": "mocha --check-leaks --bail --no-exit --reporter spec test/",
+    "test-cov": "istanbul cover node_modules/mocha/bin/_mocha -- --check-leaks --no-exit --reporter dot test/",
+    "test-travis": "istanbul cover node_modules/mocha/bin/_mocha --report lcovonly -- --check-leaks --no-exit --reporter spec test/",
+    "generate-api": "swagger-typescript-api generate -p http://localhost:8888/api-docs-json -o ./src/api -n api.ts --axios --clean-output",
+    "generate-api:prod": "swagger-typescript-api generate -p https://your-production-domain.com/api-docs-json -o ./src/api -n api.ts --axios --clean-output",
+    "api:dev": "swagger-typescript-api generate -p http://localhost:8888/api-docs-json -o ./src/api -n api.ts --axios --clean-output --extract-request-params",
+    "api:clean": "rimraf src/api && npm run generate-api",
+    "migrate": "node scripts/migrate-database.js",
+    "dev": "nodemon index.js",
+    "cleanup": "node -e \"require('./src/services/cleanupService').runFullCleanup().then(() => process.exit(0))\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devfans/node-license-server.git"
+  },
+  "keywords": [
+    "license",
+    "server",
+    "node",
+    "software",
+    "licensing",
+    "permission"
+  ],
+  "author": "stefanliu@outlook.com",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/devfans/node-license-server/issues"
+  },
+  "devDependencies": {
+    "after": "0.8.2",
+    "eslint": "^5.16.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-markdown": "^1.0.0",
+    "istanbul": "1.0.0-alpha.2",
+    "machine-digest": "0.0.3",
+    "mocha": "^6.1.4",
+    "node-fetch": "^2.1.2",
+    "rimraf": "^5.0.5",
+    "supertest": "^4.0.2",
+    "swagger-typescript-api": "^13.2.7"
+  },
+  "homepage": "https://github.com/devfans/node-license-server#readme",
+  "dependencies": {
+    "@dicebear/collection": "^9.2.3",
+    "@dicebear/core": "^9.2.3",
+    "axios": "^1.11.0",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
+    "body-parser": "^1.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^4.16.3",
+    "express-validator": "^7.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.14.2",
+    "nodemailer": "^7.0.5",
+    "redis-async-wrapper": "0.0.5",
+    "sequelize": "^6.37.7",
+    "snowflake-id": "^1.1.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^11.1.0",
+    "winston": "^3.0.0-rc5"
+  }
+}

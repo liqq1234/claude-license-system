@@ -1,0 +1,180 @@
+/* 重置默认样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+  background: rgb(250, 249, 245);
+  overflow-x: hidden; /* 只隐藏水平滚动条 */
+}
+
+#app {
+  height: 100vh;
+  width: 100%;
+}
+
+/* 登录页面居中布局 */
+#app.login-layout {
+  display: block; /* 改为block布局 */
+  min-height: 100vh;
+  overflow-y: auto; /* 允许垂直滚动 */
+  position: relative;
+}
+
+/* Dashboard页面全屏布局 */
+#app.dashboard-layout {
+  display: block;
+}
+
+/* 自定义Element Plus主题色 - 温暖色调 */
+:root {
+  --el-color-primary: #d2691e;
+  --el-border-radius-base: 16px;
+}
+
+/* 自定义按钮样式 - 温暖色调 */
+.el-button--primary {
+  background-color: #d2691e;
+  border-color: #d2691e;
+  border-radius: 16px;
+  font-weight: 500;
+  padding: 14px 28px;
+  font-size: 16px;
+  min-height: 52px;
+}
+
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background-color: #b8621a;
+  border-color: #b8621a;
+}
+
+/* 自定义输入框样式 */
+.el-input__wrapper {
+  border-radius: 16px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e4e7ed;
+  min-height: 52px;
+}
+
+.el-input__wrapper:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.el-input__wrapper.is-focus {
+  box-shadow: 0 4px 12px rgba(210, 105, 30, 0.3);
+  border-color: #d2691e;
+}
+
+/* 自定义表单项样式 */
+.el-form-item {
+  margin-bottom: 32px;
+}
+
+.el-form-item__label {
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 8px;
+}
+
+/* 登录卡片动画 */
+.login-card {
+  animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 背景装饰 */
+.background-decoration {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.decoration-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  animation: float 6s ease-in-out infinite;
+}
+
+.decoration-circle:nth-child(1) {
+  width: 80px;
+  height: 80px;
+  top: 20%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.decoration-circle:nth-child(2) {
+  width: 120px;
+  height: 120px;
+  top: 60%;
+  right: 15%;
+  animation-delay: 2s;
+}
+
+.decoration-circle:nth-child(3) {
+  width: 60px;
+  height: 60px;
+  bottom: 20%;
+  left: 20%;
+  animation-delay: 4s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+/* 注册页面样式重置 */
+.claude-register * {
+  box-sizing: border-box;
+}
+
+.claude-register {
+  /* 确保注册页面不受全局样式影响 */
+  position: relative;
+  z-index: 1;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .login-container {
+    margin: 20px;
+    width: calc(100% - 40px) !important;
+    max-width: none;
+  }
+
+  .login-card {
+    padding: 32px 24px !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .login-container {
+    max-width: 420px;
+  }
+}

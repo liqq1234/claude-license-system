@@ -1,0 +1,85 @@
+# 依赖文件
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 环境变量文件（包含敏感信息）
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 构建输出
+dist/
+build/
+*.tsbuildinfo
+
+# 日志文件
+logs/
+*.log
+
+# 运行时文件
+*.pid
+*.seed
+*.pid.lock
+
+# 缓存文件
+.cache/
+.parcel-cache/
+.npm/
+.eslintcache
+.stylelintcache
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+temp/
+tmp/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 备份文件
+*.backup
+*.bak
+*.orig
+
+# 测试覆盖率
+coverage/
+*.lcov
+
+# 其他
+.nyc_output/
+.grunt/
+.lock-wscript/
+.wafpickle-*
+.node_repl_history
+.yarn-integrity
+
+# 项目特定文件
+test-*.html
+*.md.backup
+check-config.js
+start-all-services.bat
+nginx-proxy.conf

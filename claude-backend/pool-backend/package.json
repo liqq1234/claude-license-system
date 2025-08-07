@@ -1,0 +1,35 @@
+{
+	"name": "claude-pool-manager",
+	"version": "0.1.3",
+	"license": "MIT",
+	"scripts": {
+		"dev": "npx ts-node src/server.ts",
+		"start": "node dist/server.js",
+		"build": "npx tsc",
+		"db:init": "mysql -u root -p4693090li claudehub < database/init.sql",
+		"db:create": "mysql -u root -p4693090li -e \"CREATE DATABASE IF NOT EXISTS claudehub DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\"",
+		"db:migrate": "npx ts-node scripts/migrate-kv-to-mysql.ts",
+		"db:backup": "npx ts-node scripts/migrate-kv-to-mysql.ts --backup",
+		"test": "npx ts-node test-add-user.js"
+	},
+	"dependencies": {
+		"@types/dotenv": "^8.2.3",
+		"cors": "^2.8.5",
+		"dotenv": "^17.2.1",
+		"express": "^4.18.2",
+		"jsonwebtoken": "^9.0.2",
+		"mysql2": "^3.6.5",
+		"swagger-jsdoc": "^6.2.8",
+		"swagger-ui-express": "^5.0.0"
+	},
+	"devDependencies": {
+		"@types/cors": "^2.8.17",
+		"@types/express": "^4.17.21",
+		"@types/jsonwebtoken": "^9.0.5",
+		"@types/node": "^20.10.0",
+		"@types/swagger-jsdoc": "^6.0.4",
+		"@types/swagger-ui-express": "^4.1.6",
+		"ts-node": "^10.9.1",
+		"typescript": "^5.5.2"
+	}
+}

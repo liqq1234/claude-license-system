@@ -1,0 +1,24 @@
+{
+  "name": "claude-auth-system",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start:all": "powershell -ExecutionPolicy Bypass -File start-all.ps1",
+    "health-check": "node -e \"import('./src/config/api.js').then(api => api.healthCheck())\""
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.0",
+    "axios": "^1.11.0",
+    "element-plus": "^2.4.0",
+    "pinia": "^2.3.1",
+    "vue": "^3.4.0",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}

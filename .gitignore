@@ -83,3 +83,30 @@ test-*.html
 check-config.js
 start-all-services.bat
 nginx-proxy.conf
+
+# 构建产物和缓存
+dist/
+build/
+.cache/
+.parcel-cache/
+
+# 浏览器缓存文件
+claude.ai/
+*.html.backup
+
+# 临时文件和日志
+*.log
+*.tmp
+*.temp
+temp/
+tmp/
+
+# IDE和编辑器文件
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db

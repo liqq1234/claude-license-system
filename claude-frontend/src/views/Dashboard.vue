@@ -168,40 +168,34 @@
                             class="account-card-desktop"
                             @click="handleAccountClick(account)"
                         >
-                            <!-- 账号图标 -->
-                            <div class="account-icon">
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="24"
-                                    height="24"
-                                    fill="currentColor"
-                                    viewBox="0 0 256 256"
-                                >
+                            <!-- Claude 图标装饰 -->
+                            <div class="card-decoration">
+                                <svg viewBox="0 0 24 24" class="claude-icon">
                                     <path
-                                        d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Z"
+                                        d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"
+                                        fill="#D97757"
+                                        fill-rule="nonzero"
                                     />
                                 </svg>
                             </div>
 
-                            <!-- 账号名称 -->
-                            <div
-                                class="account-name-desktop"
-                            >{{ account.name || account.email.split('@')[0] }}</div>
+                            <!-- 卡片内容 -->
+                            <div class="card-content">
+                                <!-- 顶部信息 -->
+                                <div class="card-header">
+                                    <div
+                                        class="account-name-new"
+                                    >{{ account.name || account.email.split('@')[0] }}</div>
+                                </div>
 
-                            <!-- 状态标签 -->
-                            <div class="status-badges">
-                                <span class="badge badge-pro">Claude</span>
-                            </div>
-
-                            <!-- 状态信息 -->
-                            <div
-                                class="account-status-desktop status-idle"
-                            >{{ account.status === 'active' ? '可用' : '离线' }}</div>
-
-                            <!-- 底部信息 -->
-                            <div class="expire-info">
-                                <span class="expire-date">{{ account.email }}</span>
-                                <span class="claude-label">Claude</span>
+                                <!-- 底部状态 -->
+                                <div class="card-footer">
+                                    <div class="status-indicator">
+                                        <div class="status-dot"></div>
+                                        <span class="status-text">空闲</span>
+                                        <span class="email-text">{{ getMaskedEmail(account.email) }}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -665,6 +659,29 @@ const formatDateTime = (dateString) => {
     });
 };
 
+// 脱敏邮箱地址
+const getMaskedEmail = (email) => {
+    if (!email) return "";
+    const [localPart, domain] = email.split("@");
+    if (!localPart || !domain) return email;
+
+    // 如果本地部分长度小于等于3，只显示第一个字符
+    if (localPart.length <= 3) {
+        return `${localPart[0]}***@${domain}`;
+    }
+
+    // 显示前2个字符和后1个字符，中间用***代替
+    const maskedLocal = `${localPart.slice(0, 2)}***${localPart.slice(-1)}`;
+    return `${maskedLocal}@${domain}`;
+};
+
+// 清理账号名称，去掉数字后缀
+const cleanAccountName = (name) => {
+    if (!name) return "";
+    // 去掉末尾的 #数字 格式，比如 "Claude#3" -> "Claude"
+    return name.replace(/#\d+$/, "");
+};
+
 const handleRedeem = async () => {
     if (!redeemCode.value.trim()) {
         ElMessage.warning("请输入兑换码");
@@ -712,7 +729,7 @@ const fetchAccounts = async () => {
             accounts.value = response.data.map((user) => ({
                 id: user.id || user.email,
                 email: user.email,
-                name: user.name || user.email.split("@")[0],
+                name: cleanAccountName(user.name || user.email.split("@")[0]),
                 status: user.status || "active",
                 avatar: user.avatar || null,
             }));
@@ -1330,145 +1347,111 @@ onMounted(() => {
 
 /* 桌面端账号卡片 */
 .account-card-desktop {
-    background: rgb(255, 254, 250);
-    border: 1px solid rgb(235, 230, 220);
-    border-radius: 8px;
-    padding: 16px;
+    background: linear-gradient(135deg, #fffbf5 0%, #fef3e2 100%);
+    border: 1px solid rgba(251, 146, 60, 0.15);
+    border-radius: 16px;
+    padding: 0;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s ease;
     position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    height: 120px;
+    height: 140px;
     width: 100%;
     box-sizing: border-box;
-    justify-content: space-between;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(251, 146, 60, 0.08);
 }
 
 .account-card-desktop:hover {
-    border-color: #d2691e;
-    box-shadow: 0 4px 12px rgba(210, 105, 30, 0.15);
-    transform: translateY(-2px);
+    border-color: rgba(251, 146, 60, 0.3);
+    box-shadow: 0 8px 25px rgba(251, 146, 60, 0.15);
+    transform: translateY(-4px);
+    background: linear-gradient(135deg, #fefcf9 0%, #fef7ed 100%);
 }
 
-/* 账号图标 */
-.account-icon {
-    margin-bottom: 8px;
-    color: #8b7d6b;
+/* 卡片装饰背景 */
+.card-decoration {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    pointer-events: none;
+    opacity: 0.6;
 }
 
-.account-icon svg {
-    width: 24px;
-    height: 24px;
+.claude-icon {
+    width: 100%;
+    height: 100%;
 }
 
-/* 账号名称 */
-.account-name-desktop {
-    font-size: 14px;
-    font-weight: 600;
-    color: #5d4e37;
-    margin-bottom: 8px;
-    word-break: break-word;
-    text-align: center;
-    line-height: 1.3;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-}
-
-/* 状态标签 */
-.status-badges {
+/* 卡片内容容器 */
+.card-content {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    padding: 16px;
     display: flex;
-    gap: 4px;
-    margin-bottom: 8px;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
-.badge {
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 10px;
+/* 卡片头部 */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+/* 新的账号名称样式 */
+.account-name-new {
+    font-size: 16px;
     font-weight: 600;
-    text-transform: uppercase;
+    color: #92400e;
+    line-height: 1.2;
+    max-width: 120px;
+    word-break: break-word;
 }
 
-.badge-pro {
-    background: rgb(245, 235, 220);
-    color: #8b4513;
+/* 卡片底部 */
+.card-footer {
+    display: flex;
+    align-items: center;
 }
 
-.badge-max {
-    background: rgb(255, 248, 235);
-    color: #a0522d;
+/* 状态指示器 */
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 状态圆点 */
+.status-dot {
+    width: 8px;
+    height: 8px;
+    background: #16a34a;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
 }
 
 /* 状态文字 */
-.account-status-desktop {
+.status-text {
+    font-size: 14px;
+    color: #a16207;
+    font-weight: 500;
+}
+
+/* 邮箱文字 */
+.email-text {
     font-size: 12px;
-    font-weight: 500;
-    padding: 4px 8px;
-    border-radius: 4px;
-    margin-bottom: 8px;
+    color: #92400e;
+    font-weight: 400;
+    margin-left: 8px;
+    opacity: 0.8;
 }
 
-.account-status-desktop.status-idle {
-    background: rgb(230, 245, 235);
-    color: #2d5016;
-}
-
-.account-status-desktop.status-normal {
-    background: rgb(235, 240, 250);
-    color: #1e3a8a;
-}
-
-.account-status-desktop.status-recovering {
-    background: rgb(255, 248, 235);
-    color: #a0522d;
-}
-
-.account-status-desktop.status-busy {
-    background: rgb(255, 235, 235);
-    color: #8b1538;
-}
-
-/* 恢复时间 */
-.recovery-time-desktop {
-    font-size: 11px;
-    color: #cd853f;
-    font-weight: 500;
-    margin-top: auto;
-}
-
-/* 有效期信息 */
-.expire-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: auto;
-    padding-top: 8px;
-    border-top: 1px solid rgb(235, 230, 220);
-}
-
-.expire-date {
-    font-size: 11px;
-    color: #8b7d6b;
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 70%;
-}
-
-.claude-label {
-    font-size: 11px;
-    color: #d2691e;
-    font-weight: 600;
-    background: rgba(210, 105, 30, 0.1);
-    padding: 2px 6px;
-    border-radius: 4px;
-}
+/* 旧样式已移除，使用新的卡片设计 */
 
 /* 保留必要的弹窗样式 */
 

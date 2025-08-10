@@ -214,7 +214,7 @@ const initDirectLogin = async () => {
 
         // 从后端获取账户列表和对应的完整 Session Key
         const poolApiUrl =
-            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:8787";
+            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:3457";
         console.log("API地址:", poolApiUrl);
 
         const response = await fetch(

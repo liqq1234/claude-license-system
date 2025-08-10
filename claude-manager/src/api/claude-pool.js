@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // 创建专门用于Claude Pool Manager的axios实例
 const apiClient = axios.create({
-  baseURL: 'http://127.0.0.1:8787', // FuClaude Pool Manager后端地址
+  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:3457', // Claude Pool Manager后端地址
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -20,10 +20,10 @@ apiClient.interceptors.response.use(
 
 // Claude Pool Manager相关API
 export const claudePoolApi = {
-  // 管理员认证
-  adminLogin: async (password) => {
+  // 管理员认证（无需密码）
+  adminLogin: async () => {
     const response = await apiClient.post('/api/admin/list', {
-      admin_password: password
+      admin_password: 'admin123' // 固定密码
     })
     return response
   },

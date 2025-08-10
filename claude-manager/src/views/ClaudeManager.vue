@@ -1,51 +1,7 @@
 <template>
     <div class="claude-manager">
-        <!-- 管理员登录 -->
-        <div v-if="!isAuthenticated" class="login-section">
-            <el-card class="login-card">
-                <template #header>
-                    <div class="card-header">
-                        <span>🤖 Claude Pool Manager</span>
-                    </div>
-                </template>
-
-                <div class="login-content">
-                    <div class="login-description">
-                        <p>请输入管理员密码以访问 Claude 账户管理功能</p>
-                        <div class="current-url">
-                            <span class="url-label">后端地址:</span>
-                            <span class="url-value">http://127.0.0.1:8787</span>
-                        </div>
-                    </div>
-
-                    <form @submit.prevent="handleLogin" class="login-form">
-                        <el-input
-                            v-model="loginForm.password"
-                            type="password"
-                            placeholder="输入管理员密码"
-                            size="large"
-                            show-password
-                            :disabled="loginLoading"
-                        />
-
-                        <div v-if="authError" class="error-message">
-                            <el-alert :title="authError" type="error" :closable="false" />
-                        </div>
-
-                        <el-button
-                            type="primary"
-                            size="large"
-                            :loading="loginLoading"
-                            @click="handleLogin"
-                            class="login-button"
-                        >{{ loginLoading ? '登录中...' : '登录' }}</el-button>
-                    </form>
-                </div>
-            </el-card>
-        </div>
-
         <!-- 管理界面 -->
-        <div v-else class="management-section">
+        <div class="management-section">
             <!-- 状态栏 -->
             <div class="status-section">
                 <el-card class="status-card">
@@ -53,7 +9,7 @@
                         <div class="status-info">
                             <span class="status-icon">✅</span>
                             <span class="status-text">管理员已登录</span>
-                            <span class="url-info">连接到: http://127.0.0.1:8787</span>
+                            <span class="url-info">连接到: {{ apiBaseUrl }}</span>
                         </div>
                         <el-button type="danger" size="small" @click="handleLogout">退出登录</el-button>
                     </div>
@@ -104,51 +60,13 @@ import ClaudeBatchOperations from "@/components/claude/ClaudeBatchOperations.vue
 import ClaudeQuickLogin from "@/components/claude/ClaudeQuickLogin.vue";
 
 // 响应式数据
-const isAuthenticated = ref(false);
-const loginLoading = ref(false);
-const adminPassword = ref("");
+const isAuthenticated = ref(true); // 直接设置为已认证状态
+const adminPassword = ref("admin123"); // 设置默认密码
 const accountList = ref([]);
 const activeTab = ref("manage");
-const authError = ref("");
-
-const loginForm = reactive({
-    password: "",
-});
-
-// 管理员登录
-const handleLogin = async () => {
-    if (!loginForm.password.trim()) {
-        ElMessage.warning("请输入管理员密码");
-        return;
-    }
-
-    loginLoading.value = true;
-    try {
-        await claudePoolApi.adminLogin(loginForm.password);
-
-        adminPassword.value = loginForm.password;
-        isAuthenticated.value = true;
-
-        ElMessage.success("登录成功！");
-
-        // 加载账户列表
-        await loadAccountList();
-    } catch (error) {
-        console.error("登录失败:", error);
-        ElMessage.error(error.response?.data?.error || "登录失败，请检查密码");
-    } finally {
-        loginLoading.value = false;
-    }
-};
-
-// 退出登录
-const handleLogout = () => {
-    isAuthenticated.value = false;
-    adminPassword.value = "";
-    loginForm.password = "";
-    accountList.value = [];
-    ElMessage.info("已退出登录");
-};
+const apiBaseUrl = ref(
+    import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:3457"
+);
 
 // 加载账户列表
 const loadAccountList = async () => {
@@ -182,79 +100,15 @@ const loadAccountList = async () => {
 // 删除了未使用的refreshData函数
 
 // 组件挂载
-onMounted(() => {
-    // 可以在这里检查是否有保存的登录状态
+onMounted(async () => {
+    // 自动加载账户列表
+    await loadAccountList();
 });
 </script>
 
 <style scoped>
 .claude-manager {
     padding: 0;
-}
-
-/* 登录部分 */
-.login-section {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 60vh;
-}
-
-.login-card {
-    width: 100%;
-    max-width: 500px;
-    margin: 0 auto;
-}
-
-.login-content {
-    padding: 20px 0;
-}
-
-.login-description {
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-.login-description p {
-    margin: 0 0 15px 0;
-    color: #606266;
-    font-size: 14px;
-    line-height: 1.5;
-}
-
-.current-url {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: #f5f7fa;
-    border-radius: 6px;
-    font-size: 12px;
-}
-
-.url-label {
-    color: #909399;
-    font-weight: 500;
-}
-
-.url-value {
-    color: #409eff;
-    font-family: monospace;
-}
-
-.login-form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.login-button {
-    width: 100%;
-}
-
-.error-message {
-    margin-top: 10px;
 }
 
 /* 管理界面 */

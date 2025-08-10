@@ -56,6 +56,7 @@
 <script setup>
 import { ref } from "vue";
 import { ElMessage } from "element-plus";
+import { claudePoolApi } from "@/api/claude-pool";
 
 const props = defineProps({
     adminPassword: {
@@ -144,12 +145,23 @@ const handleBatchAdd = async () => {
 
         for (const account of accounts) {
             try {
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                // 调用实际的API添加账户
+                await claudePoolApi.addAccount(
+                    props.adminPassword,
+                    account.email,
+                    account.sessionKey
+                );
                 success.push(account.email);
+                // 添加延迟避免请求过快
+                await new Promise((resolve) => setTimeout(resolve, 200));
             } catch (error) {
+                console.error(`添加账户 ${account.email} 失败:`, error);
                 errors.push({
                     email: account.email,
-                    message: error.message || "添加失败",
+                    message:
+                        error.response?.data?.error ||
+                        error.message ||
+                        "添加失败",
                 });
             }
         }

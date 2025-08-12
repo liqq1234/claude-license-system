@@ -1290,6 +1290,453 @@ app.get('/direct-chat', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/plugin/add-account:
+ *   post:
+ *     summary: 插件添加账户
+ *     description: 供插件调用的接口，用于添加Claude账户到账户池（无需管理员密码）
+ *     tags: [Plugin]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - sk
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Claude账户邮箱
+ *                 example: "user@example.com"
+ *               sk:
+ *                 type: string
+ *                 description: Claude Session Key
+ *                 example: "sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456789"
+ *               plugin_name:
+ *                 type: string
+ *                 description: 插件名称（可选）
+ *                 example: "Claude Extension"
+ *     responses:
+ *       200:
+ *         description: 账户添加成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Account user@example.com added successfully"
+ *                 id:
+ *                   type: integer
+ *                   description: 新添加账户的ID
+ *                   example: 123
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: "Email and SK are required"
+ *       409:
+ *         description: 邮箱已存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: "Email already exists"
+ *       500:
+ *         description: 服务器内部错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: "Failed to add account"
+ */
+// POST /api/plugin/add-account: 插件添加账户接口
+app.post('/api/plugin/add-account', async (req, res) => {
+  try {
+    const { email, sk, plugin_name = 'Unknown Plugin' } = req.body;
+
+    // 验证必需参数
+    if (!email || !sk) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and SK are required'
+      });
+    }
+
+    // 验证邮箱格式
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email format'
+      });
+    }
+
+    // 验证Session Key格式
+    if (!sk.startsWith('sk-')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Session Key must start with sk-'
+      });
+    }
+
+    // 检查邮箱是否已存在
+    const existingAccount = await db.getAccountByEmail(email);
+    if (existingAccount) {
+      return res.status(409).json({
+        success: false,
+        error: `Email ${email} already exists`
+      });
+    }
+
+    // 添加账户到数据库
+    const accountId = await db.addAccount({
+      email: email,
+      session_key: sk,
+      status: 1,
+      created_by: plugin_name
+    });
+
+    // 记录插件操作日志
+    try {
+      await db.logAdminAction({
+        action: 'plugin_add',
+        target_email: email,
+        new_data: {
+          email: email,
+          sk: sk.substring(0, 20) + '...',
+          plugin_name: plugin_name
+        },
+        admin_ip: getClientIP(req),
+        user_agent: getUserAgent(req),
+        success: true
+      });
+    } catch (logError) {
+      console.error('Failed to log plugin action:', logError);
+    }
+
+    console.log(`Plugin action: Account ${email} added successfully by ${plugin_name}`);
+
+    res.json({
+      success: true,
+      message: `Account ${email} added successfully`,
+      id: accountId
+    });
+
+  } catch (error) {
+    console.error('Plugin add account failed:', error);
+
+    // 记录失败日志
+    try {
+      await db.logAdminAction({
+        action: 'plugin_add',
+        target_email: req.body.email,
+        admin_ip: getClientIP(req),
+        user_agent: getUserAgent(req),
+        success: false,
+        error_message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } catch (logError) {
+      console.error('Failed to log plugin action error:', logError);
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add account'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/account-status/{email}:
+ *   get:
+ *     summary: 获取账户使用状态
+ *     description: 获取指定账户的使用状态和倒计时信息
+ *     tags: [Account Status]
+ *     parameters:
+ *       - in: path
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 账户邮箱
+ *     responses:
+ *       200:
+ *         description: 账户状态信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 email:
+ *                   type: string
+ *                   example: "user@example.com"
+ *                 status:
+ *                   type: string
+ *                   enum: ["idle", "available", "busy"]
+ *                   example: "available"
+ *                 status_text:
+ *                   type: string
+ *                   example: "可用"
+ *                 color:
+ *                   type: string
+ *                   enum: ["green", "yellow", "red"]
+ *                   example: "yellow"
+ *                 countdown:
+ *                   type: string
+ *                   example: "4:23"
+ *                 remaining_seconds:
+ *                   type: integer
+ *                   example: 263
+ *                 last_used:
+ *                   type: string
+ *                   format: date-time
+ *                   example: "2024-01-01T12:00:00Z"
+ */
+// GET /api/account-status/:email: 获取账户状态
+app.get('/api/account-status/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // 获取账户信息
+    const account = await db.getAccountByEmail(email);
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    // 计算状态
+    const status = calculateAccountStatus(account);
+
+    res.json({
+      email: email,
+      ...status
+    });
+
+  } catch (error) {
+    console.error('Get account status failed:', error);
+    res.status(500).json({ error: 'Failed to get account status' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/accounts-status:
+ *   get:
+ *     summary: 获取所有账户状态
+ *     description: 获取账户池中所有账户的状态信息
+ *     tags: [Account Status]
+ *     responses:
+ *       200:
+ *         description: 所有账户状态列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   email:
+ *                     type: string
+ *                   status:
+ *                     type: string
+ *                   status_text:
+ *                     type: string
+ *                   color:
+ *                     type: string
+ *                   countdown:
+ *                     type: string
+ *                   remaining_seconds:
+ *                     type: integer
+ */
+// GET /api/accounts-status: 获取所有账户状态
+app.get('/api/accounts-status', async (req, res) => {
+  try {
+    // 获取所有账户
+    const accounts = await db.getAllAccounts();
+
+    // 计算每个账户的状态
+    const accountsWithStatus = accounts.map(account => ({
+      email: account.email,
+      unique_name: account.unique_name || account.email.split('@')[0], // 如果没有unique_name，使用邮箱前缀
+      ...calculateAccountStatus(account)
+    }));
+
+    res.json(accountsWithStatus);
+
+  } catch (error) {
+    console.error('Get accounts status failed:', error);
+    res.status(500).json({ error: 'Failed to get accounts status' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/account-usage/{email}:
+ *   post:
+ *     summary: 记录账户使用
+ *     description: 记录账户被使用的时间，用于状态计算
+ *     tags: [Account Status]
+ *     parameters:
+ *       - in: path
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 账户邮箱
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               user_ip:
+ *                 type: string
+ *                 description: 用户IP地址
+ *               user_agent:
+ *                 type: string
+ *                 description: 用户代理
+ *     responses:
+ *       200:
+ *         description: 使用记录成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Usage recorded successfully"
+ */
+// POST /api/account-usage/:email: 记录账户使用
+app.post('/api/account-usage/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { user_ip, user_agent } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // 获取账户信息
+    const account = await db.getAccountByEmail(email);
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    // 更新账户使用统计
+    await db.updateAccountUsage(email);
+
+    // 记录使用日志
+    try {
+      await db.logAdminAction({
+        action: 'login',
+        target_email: email,
+        admin_ip: user_ip || getClientIP(req),
+        user_agent: user_agent || getUserAgent(req),
+        success: true
+      });
+    } catch (logError) {
+      console.error('Failed to log usage:', logError);
+    }
+
+    console.log(`Account usage recorded: ${email}`);
+
+    res.json({
+      success: true,
+      message: 'Usage recorded successfully'
+    });
+
+  } catch (error) {
+    console.error('Record account usage failed:', error);
+    res.status(500).json({ error: 'Failed to record usage' });
+  }
+});
+
+// 计算账户状态的辅助函数
+function calculateAccountStatus(account: any) {
+  const currentTime = new Date();
+  const lastUsed = account.last_used_at ? new Date(account.last_used_at) : null;
+
+  if (!lastUsed) {
+    return {
+      status: 'idle',
+      status_text: '空闲',
+      color: 'green',
+      countdown: '',
+      remaining_seconds: 0,
+      last_used: null
+    };
+  }
+
+  // 计算距离上次使用的时间（秒）
+  const timeSinceUsed = Math.floor((currentTime.getTime() - lastUsed.getTime()) / 1000);
+  const cooldownPeriod = 300; // 5分钟 = 300秒
+
+  if (timeSinceUsed >= cooldownPeriod) {
+    // 超过5分钟，状态为空闲
+    return {
+      status: 'idle',
+      status_text: '空闲',
+      color: 'green',
+      countdown: '',
+      remaining_seconds: 0,
+      last_used: lastUsed.toISOString()
+    };
+  } else {
+    // 5分钟内被使用过，状态为可用但显示倒计时
+    const remainingSeconds = cooldownPeriod - timeSinceUsed;
+    const minutes = Math.floor(remainingSeconds / 60);
+    const seconds = remainingSeconds % 60;
+    const countdown = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+    return {
+      status: 'available',
+      status_text: '可用',
+      color: 'yellow',
+      countdown: countdown,
+      remaining_seconds: remainingSeconds,
+      last_used: lastUsed.toISOString()
+    };
+  }
+}
+
 // 启动服务器
 async function startServer() {
   try {

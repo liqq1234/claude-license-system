@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "npmClient": "yarn",
+  "useWorkspaces": true,
+  "packages": [
+    "claude-frontend",
+    "claude-manager",
+    "claude-backend/pool-backend",
+    "claude-backend/activation-backend"
+  ],
+  "command": {
+    "bootstrap": {
+      "hoist": true
+    },
+    "run": {
+      "npmClient": "yarn"
+    }
+  }
+}

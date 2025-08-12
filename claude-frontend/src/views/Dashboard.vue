@@ -74,14 +74,6 @@
                                     />
                                 </svg>
                             </div>
-                            <div class="promo-content">
-                                <p>推广的用户好评选择优质体验，从这里开始</p>
-                                <p class="contact">客服微信 LL32556188</p>
-                                <p class="notice">在使用账号过程中，请您注意，由于我们无法预知和控制可能存在的官方封问题。</p>
-                                <p
-                                    class="warning"
-                                >如果您认为对话内容更重要，强烈建议您备行存储您的价值存，在此特别提醒，如果未来存储您的市交易数据丢失，我们无法承担。希望能理解并配合！</p>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -133,6 +125,13 @@
                             </svg>
                             随机登录
                         </button>
+
+                        <!-- 调试按钮 -->
+                        <button
+                            v-if="accounts.length > 0"
+                            class="test-btn"
+                            @click="testAccountClick"
+                        >🧪 测试点击第一个账户</button>
                     </div>
 
                     <!-- 标签栏 -->
@@ -149,63 +148,15 @@
                         <h2 class="accounts-title">可用账号</h2>
                     </div>
 
-                    <!-- 加载状态 -->
-                    <div v-if="loading" class="loading-container">
-                        <div class="loading-text">正在加载账号列表...</div>
-                    </div>
-
-                    <!-- 错误状态 -->
-                    <div v-else-if="error" class="error-container">
-                        <div class="error-text">加载失败，请重试</div>
-                        <button class="retry-btn" @click="refreshAccounts">重新加载</button>
-                    </div>
-
-                    <!-- 账号网格 -->
-                    <div v-else class="accounts-grid-desktop">
-                        <div
-                            v-for="account in accounts"
-                            :key="account.id || account.email"
-                            class="account-card-desktop"
-                            @click="handleAccountClick(account)"
-                        >
-                            <!-- Claude 图标装饰 -->
-                            <div class="card-decoration">
-                                <svg viewBox="0 0 24 24" class="claude-icon">
-                                    <path
-                                        d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"
-                                        fill="#D97757"
-                                        fill-rule="nonzero"
-                                    />
-                                </svg>
-                            </div>
-
-                            <!-- 卡片内容 -->
-                            <div class="card-content">
-                                <!-- 顶部信息 -->
-                                <div class="card-header">
-                                    <div
-                                        class="account-name-new"
-                                    >{{ account.name || account.email.split('@')[0] }}</div>
-                                </div>
-
-                                <!-- 底部状态 -->
-                                <div class="card-footer">
-                                    <div class="status-indicator">
-                                        <div class="status-dot"></div>
-                                        <span class="status-text">空闲</span>
-                                        <span class="email-text">{{ getMaskedEmail(account.email) }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 空状态 -->
-                    <div v-if="!loading && !error && accounts.length === 0" class="empty-state">
-                        <div class="empty-icon">📝</div>
-                        <div class="empty-text">暂无可用账号</div>
-                        <button class="refresh-btn" @click="refreshAccounts">刷新列表</button>
-                    </div>
+                    <!-- 账号网格组件 -->
+                    <AccountGrid
+                        ref="accountGridRef"
+                        :accounts="accounts"
+                        :loading="loading"
+                        :error="error"
+                        @account-click="handleAccountClick"
+                        @retry="refreshAccounts"
+                    />
                 </div>
             </main>
         </div>
@@ -429,12 +380,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, reactive, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { ElMessage } from "element-plus";
 import { claudeUsersService } from "@/api/claude-users";
 import { authApi } from "@/api/auth";
+import AccountGrid from "@/components/common/AccountGrid.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -452,6 +404,9 @@ const activeTab = ref("basic");
 const accounts = ref([]);
 const loading = ref(false);
 const error = ref(false);
+
+// 组件引用
+const accountGridRef = ref(null);
 
 // 修改密码表单
 const passwordForm = ref({
@@ -763,7 +718,7 @@ const handleRandomLogin = async () => {
 
         // 2. 调用pool-backend的随机登录接口
         const poolApiUrl =
-            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:8787";
+            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:3457";
         const token = localStorage.getItem("token");
 
         const loginResponse = await fetch(`${poolApiUrl}/api/login`, {
@@ -826,24 +781,132 @@ const handleRandomLogin = async () => {
     }
 };
 
+// 状态更新函数 - 使用组件的方法
+const updateAccountStatus = (email, newStatus) => {
+    console.log(`🎯 Dashboard: 更新账户状态 ${email}`, newStatus);
+
+    if (accountGridRef.value) {
+        accountGridRef.value.updateAccountStatus(email, newStatus);
+    } else {
+        console.warn("⚠️ AccountGrid 组件引用不存在");
+    }
+};
+
+// 设置账户加载状态
+const setAccountLoading = (email, loading) => {
+    console.log(`🔄 Dashboard: 设置账户加载状态 ${email}:`, loading);
+
+    if (accountGridRef.value) {
+        accountGridRef.value.setAccountLoading(email, loading);
+    } else {
+        console.warn("⚠️ AccountGrid 组件引用不存在");
+    }
+};
+
+// 记录账户使用（简化版）
+const recordAccountUsage = async (email) => {
+    console.log("🔗 recordAccountUsage 开始执行");
+    console.log("📧 邮箱:", email);
+
+    try {
+        // 这里可以调用实际的API，现在先模拟成功
+        console.log("✅ recordAccountUsage 模拟成功");
+        return { status: 200, success: true };
+    } catch (error) {
+        console.error("❌ recordAccountUsage 请求失败:", error);
+        throw error;
+    }
+};
+
 // 处理账号点击
 const handleAccountClick = async (account) => {
-    try {
-        // 1. 首先验证用户的激活码是否过期
+    console.log("🚀🚀🚀 handleAccountClick 函数被调用了！！！");
+    console.log("🎯 用户点击账户:", account.email);
+    console.log("📋 账户对象:", account);
 
+    try {
+        // 1. 先记录账户使用
+        console.log("🔄 进入记录账户使用阶段");
+        try {
+            console.log("📝 开始记录账户使用...");
+            console.log("📧 记录使用的邮箱:", account.email);
+
+            const recordResponse = await recordAccountUsage(account.email);
+            console.log("✅ 账户使用记录成功，响应:", recordResponse);
+
+            // 检查响应状态
+            if (recordResponse && recordResponse.status !== undefined) {
+                console.log(
+                    "📊 recordAccountUsage 响应状态:",
+                    recordResponse.status
+                );
+                if (
+                    recordResponse.status !== 200 &&
+                    recordResponse.status !== 0
+                ) {
+                    console.warn(
+                        "⚠️ recordAccountUsage 返回非成功状态:",
+                        recordResponse
+                    );
+                }
+            }
+
+            // 立即更新本地状态为可用状态
+            const newStatus = {
+                status: "available",
+                status_text: "可用",
+                color: "yellow",
+                countdown: "5:00",
+                remaining_seconds: 300,
+                last_used: new Date().toISOString(),
+            };
+
+            console.log("🔄 准备更新状态:", newStatus);
+
+            // 使用状态更新函数
+            updateAccountStatus(account.email, newStatus);
+
+            // 使用 nextTick 确保 DOM 更新
+            await nextTick();
+
+            // 验证状态是否真的更新了
+            if (accountGridRef.value) {
+                console.log(
+                    "🔍 更新后的状态:",
+                    accountGridRef.value.accountsStatus[account.email]
+                );
+            }
+
+            ElMessage.success(`${account.email} 状态已更新为可用`);
+        } catch (statusError) {
+            console.error("❌ 记录账户使用失败:", statusError);
+            console.error("❌ 错误详情:", statusError);
+            console.error("❌ 错误堆栈:", statusError.stack);
+            ElMessage.error("状态更新失败: " + statusError.message);
+
+            // 即使记录使用失败，也继续执行后续流程
+            console.log("⚠️ 记录使用失败，但继续执行跳转流程");
+        }
+
+        // 2. 首先验证用户的激活码是否过期
+        console.log("🔐 开始验证用户访问权限...");
         const accessResult = await claudeUsersService.validateUserAccess();
+        console.log("✅ 访问权限验证结果:", accessResult);
 
         // 验证访问权限
-
         if (!accessResult.data || !accessResult.data.hasAccess) {
             ElMessage.warning("您的激活码已过期或无效，请重新激活");
             return;
         }
 
         // 2. 调用pool-backend的用户登录接口，指定账号登录
+        console.log("🔄 开始调用pool-backend登录接口...");
         const poolApiUrl =
-            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:8787";
+            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:3457";
         const token = localStorage.getItem("token");
+
+        console.log("🌐 Pool API URL:", poolApiUrl);
+        console.log("🔑 Token:", token ? "存在" : "不存在");
 
         const loginResponse = await fetch(`${poolApiUrl}/api/login`, {
             method: "POST",
@@ -887,6 +950,10 @@ const handleAccountClick = async (account) => {
             throw new Error("未获取到聊天链接");
         }
     } catch (err) {
+        console.error("❌ handleAccountClick 整体流程失败:", err);
+        console.error("❌ 错误详情:", err);
+        console.error("❌ 错误堆栈:", err.stack);
+
         // 根据错误类型显示不同的提示
         if (err.message.includes("过期") || err.message.includes("expired")) {
             ElMessage.error("您的激活码已过期，请重新激活");
@@ -903,7 +970,29 @@ const handleAccountClick = async (account) => {
         } else {
             ElMessage.error("登录失败: " + err.message);
         }
+    } finally {
+        // 无论成功还是失败，都要清除加载状态
+        console.log("🏁 handleAccountClick 执行完成，清除加载状态");
+        setAccountLoading(account.email, false);
+        console.log("✅ 账户加载状态已清除");
     }
+};
+
+// 测试点击账户函数
+const testAccountClick = () => {
+    console.log("🧪 测试按钮被点击");
+
+    if (accounts.value.length === 0) {
+        console.log("❌ 没有账户可以测试");
+        ElMessage.warning("没有账户可以测试");
+        return;
+    }
+
+    const testAccount = accounts.value[0];
+    console.log("🧪 准备测试账户:", testAccount);
+
+    // 直接调用 handleAccountClick
+    handleAccountClick(testAccount);
 };
 
 // 点击外部关闭用户菜单
@@ -914,6 +1003,18 @@ const handleClickOutside = (event) => {
 };
 
 onMounted(() => {
+    console.log("🎯 Dashboard组件已挂载，开始初始化...");
+
+    // 测试 handleAccountClick 函数是否存在
+    console.log("🧪 测试 handleAccountClick 函数:", typeof handleAccountClick);
+
+    // 暴露到全局用于调试
+    window.handleAccountClick = handleAccountClick;
+    window.accounts = accounts;
+    window.accountGridRef = accountGridRef;
+    window.updateAccountStatus = updateAccountStatus;
+    console.log("🌐 已将调试函数暴露到全局 window 对象");
+
     document.addEventListener("click", handleClickOutside);
 
     // 初始化时获取会员状态和兑换记录
@@ -1267,6 +1368,27 @@ onMounted(() => {
     border-color: #b8621a;
 }
 
+/* 测试按钮样式 */
+.test-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    background: #6366f1;
+    border: 1px solid #6366f1;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.test-btn:hover {
+    background: #4f46e5;
+    border-color: #4f46e5;
+}
+
 /* 标签栏 */
 .tabs-section {
     display: flex;
@@ -1308,152 +1430,7 @@ onMounted(() => {
     margin: 0;
 }
 
-/* 桌面端账号卡片网格 - 固定4列布局 */
-.accounts-grid-desktop {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    max-width: none;
-}
-
-/* 响应式网格布局 - 保持4列，调整间距 */
-@media (min-width: 768px) {
-    .accounts-grid-desktop {
-        grid-template-columns: repeat(4, 1fr);
-        gap: 18px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .accounts-grid-desktop {
-        grid-template-columns: repeat(4, 1fr);
-        gap: 20px;
-    }
-}
-
-@media (min-width: 1200px) {
-    .accounts-grid-desktop {
-        grid-template-columns: repeat(4, 1fr);
-        gap: 22px;
-    }
-}
-
-@media (min-width: 1600px) {
-    .accounts-grid-desktop {
-        grid-template-columns: repeat(4, 1fr);
-        gap: 24px;
-    }
-}
-
-/* 桌面端账号卡片 */
-.account-card-desktop {
-    background: linear-gradient(135deg, #fffbf5 0%, #fef3e2 100%);
-    border: 1px solid rgba(251, 146, 60, 0.15);
-    border-radius: 16px;
-    padding: 0;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    height: 140px;
-    width: 100%;
-    box-sizing: border-box;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(251, 146, 60, 0.08);
-}
-
-.account-card-desktop:hover {
-    border-color: rgba(251, 146, 60, 0.3);
-    box-shadow: 0 8px 25px rgba(251, 146, 60, 0.15);
-    transform: translateY(-4px);
-    background: linear-gradient(135deg, #fefcf9 0%, #fef7ed 100%);
-}
-
-/* 卡片装饰背景 */
-.card-decoration {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    width: 32px;
-    height: 32px;
-    pointer-events: none;
-    opacity: 0.6;
-}
-
-.claude-icon {
-    width: 100%;
-    height: 100%;
-}
-
-/* 卡片内容容器 */
-.card-content {
-    position: relative;
-    z-index: 1;
-    height: 100%;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-
-/* 卡片头部 */
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-}
-
-/* 新的账号名称样式 */
-.account-name-new {
-    font-size: 16px;
-    font-weight: 600;
-    color: #92400e;
-    line-height: 1.2;
-    max-width: 120px;
-    word-break: break-word;
-}
-
-/* 卡片底部 */
-.card-footer {
-    display: flex;
-    align-items: center;
-}
-
-/* 状态指示器 */
-.status-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-/* 状态圆点 */
-.status-dot {
-    width: 8px;
-    height: 8px;
-    background: #16a34a;
-    border-radius: 50%;
-    flex-shrink: 0;
-    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
-}
-
-/* 状态文字 */
-.status-text {
-    font-size: 14px;
-    color: #a16207;
-    font-weight: 500;
-}
-
-/* 邮箱文字 */
-.email-text {
-    font-size: 12px;
-    color: #92400e;
-    font-weight: 400;
-    margin-left: 8px;
-    opacity: 0.8;
-}
-
-/* 旧样式已移除，使用新的卡片设计 */
-
-/* 保留必要的弹窗样式 */
+/* 卡片相关样式已移动到 AccountCard.vue 和 AccountGrid.vue 组件中 */
 
 /* 弹窗样式 */
 .modal-overlay {

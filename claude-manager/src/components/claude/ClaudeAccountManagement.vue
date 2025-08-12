@@ -60,14 +60,22 @@
                         <template #prefix>🔍</template>
                     </el-input>
 
+                    <div class="view-mode-switch">
+                        <el-radio-group v-model="viewMode" size="large">
+                            <el-radio-button value="table">📋 表格视图</el-radio-button>
+                            <el-radio-button value="cards">🎯 状态卡片</el-radio-button>
+                        </el-radio-group>
+                    </div>
+
                     <div class="action-buttons">
-                        <el-button @click="selectAll" size="large">全选</el-button>
-                        <el-button @click="selectNone" size="large">反选</el-button>
+                        <el-button @click="selectAll" size="large" v-if="viewMode === 'table'">全选</el-button>
+                        <el-button @click="selectNone" size="large" v-if="viewMode === 'table'">反选</el-button>
                         <el-button
                             type="danger"
                             @click="deleteSelected"
                             :disabled="selectedAccounts.length === 0"
                             size="large"
+                            v-if="viewMode === 'table'"
                         >删除选中 ({{ selectedAccounts.length }})</el-button>
                         <el-button @click="refreshAccounts" size="large">🔄 刷新</el-button>
                     </div>
@@ -81,6 +89,9 @@
                 <template #header>
                     <div class="card-header">
                         <span>👥 用户账户列表 ({{ filteredAccounts.length }})</span>
+                        <span
+                            class="view-mode-indicator"
+                        >{{ viewMode === 'table' ? '表格视图' : '状态卡片视图' }}</span>
                     </div>
                 </template>
 
@@ -89,8 +100,57 @@
                     <el-skeleton :rows="5" animated />
                 </div>
 
+                <!-- 状态卡片视图 -->
+                <div
+                    v-else-if="viewMode === 'cards' && filteredAccounts.length > 0"
+                    class="cards-view"
+                >
+                    <div class="account-cards-grid">
+                        <div
+                            v-for="account in filteredAccounts"
+                            :key="account.email"
+                            class="account-card"
+                            @click="handleAccountLogin(account)"
+                        >
+                            <div class="card-header">
+                                <h3>{{ account.unique_name || account.email }}</h3>
+                                <span class="status-badge status-idle">空闲</span>
+                            </div>
+                            <div class="card-body">
+                                <p>
+                                    <strong>邮箱:</strong>
+                                    {{ account.email }}
+                                </p>
+                                <p>
+                                    <strong>创建时间:</strong>
+                                    {{ formatDate(account.created_at) }}
+                                </p>
+                                <p>
+                                    <strong>使用次数:</strong>
+                                    {{ account.usage_count || 0 }}
+                                </p>
+                            </div>
+                            <div class="card-actions">
+                                <el-button
+                                    type="primary"
+                                    size="small"
+                                    @click.stop="handleAccountLogin(account)"
+                                >登录使用</el-button>
+                                <el-button
+                                    type="danger"
+                                    size="small"
+                                    @click.stop="handleDeleteAccount(account)"
+                                >删除</el-button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 账户表格 -->
-                <div v-else-if="filteredAccounts.length > 0" class="account-table">
+                <div
+                    v-else-if="viewMode === 'table' && filteredAccounts.length > 0"
+                    class="account-table"
+                >
                     <el-table
                         :data="filteredAccounts"
                         style="width: 100%"
@@ -165,7 +225,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { claudePoolApi } from "@/api/claude-pool";
 
@@ -191,6 +251,7 @@ const editLoading = ref(false);
 const searchQuery = ref("");
 const selectedAccounts = ref([]);
 const editingAccount = ref(null);
+const viewMode = ref("table"); // 'table' 或 'cards'
 
 // 新用户表单
 const newUser = ref({
@@ -227,6 +288,23 @@ const filteredAccounts = computed(() => {
     return processedAccounts.filter((account) =>
         account.email.toLowerCase().includes(searchQuery.value.toLowerCase())
     );
+});
+
+// 带状态的账户列表
+const accountsWithStatus = computed(() => {
+    return filteredAccounts.value.map((account) => {
+        const status = accountsStatus.value.get(account.email) || {
+            status: "idle",
+            status_text: "空闲",
+            color: "green",
+            countdown: "",
+            remaining_seconds: 0,
+        };
+        return {
+            ...account,
+            ...status,
+        };
+    });
 });
 
 // 方法
@@ -337,6 +415,52 @@ const refreshAccounts = () => {
     emit("refresh");
 };
 
+// 刷新所有账户状态
+const refreshAllStatus = async () => {
+    statusLoading.value = true;
+    try {
+        const statusList = await claudePoolApi.getAllAccountsStatus();
+
+        // 更新状态映射
+        accountsStatus.value.clear();
+        statusList.forEach((status) => {
+            accountsStatus.value.set(status.email, status);
+        });
+
+        ElMessage.success("状态刷新成功");
+    } catch (error) {
+        console.error("刷新状态失败:", error);
+        ElMessage.error("刷新状态失败");
+    } finally {
+        statusLoading.value = false;
+    }
+};
+
+// 处理账户登录
+const handleAccountLogin = async (account) => {
+    try {
+        // 这里可以调用实际的登录逻辑
+        // 例如调用快速登录API
+        await claudePoolApi.adminSpecificLogin(
+            props.adminPassword,
+            account.email,
+            account.unique_name || account.email.split("@")[0]
+        );
+
+        ElMessage.success(`正在为您登录 ${account.email}`);
+    } catch (error) {
+        console.error("登录失败:", error);
+        ElMessage.error(
+            "登录失败: " + (error.response?.data?.error || error.message)
+        );
+    }
+};
+
+// 处理状态更新
+const handleStatusUpdated = (status) => {
+    accountsStatus.value.set(status.email, status);
+};
+
 // 处理表格选择变化
 const handleSelectionChange = (selection) => {
     selectedAccounts.value = selection.map((item) => item.email);
@@ -377,13 +501,46 @@ const cancelEdit = () => {
     editForm.value.sessionKey = "";
 };
 
-// 监听账户列表变化，清空选择
+// 监听账户列表变化，清空选择并加载状态
 watch(
     () => props.accountList,
-    () => {
+    (newAccountList) => {
         selectedAccounts.value = [];
+        // 当账户列表变化时，自动加载状态（仅在卡片视图模式下）
+        if (
+            viewMode.value === "cards" &&
+            newAccountList &&
+            newAccountList.length > 0
+        ) {
+            refreshAllStatus();
+        }
     }
 );
+
+// 监听视图模式变化，切换到卡片视图时加载状态
+watch(
+    () => viewMode.value,
+    (newMode) => {
+        if (
+            newMode === "cards" &&
+            props.accountList &&
+            props.accountList.length > 0
+        ) {
+            refreshAllStatus();
+        }
+    }
+);
+
+// 组件挂载时，如果是卡片视图且有账户数据，则加载状态
+onMounted(() => {
+    if (
+        viewMode.value === "cards" &&
+        props.accountList &&
+        props.accountList.length > 0
+    ) {
+        refreshAllStatus();
+    }
+});
 </script>
 
 <style scoped>
@@ -465,10 +622,74 @@ watch(
 
 .card-header {
     display: flex;
+    justify-content: space-between;
     align-items: center;
     font-size: 16px;
     font-weight: 600;
     color: #303133;
+}
+
+.view-mode-indicator {
+    font-size: 12px;
+    color: #909399;
+    font-weight: normal;
+}
+
+/* 搜索栏样式 */
+.search-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.search-input {
+    flex: 1;
+    min-width: 200px;
+}
+
+.view-mode-switch {
+    flex-shrink: 0;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* 卡片视图样式 */
+.cards-view {
+    margin-top: 16px;
+}
+
+.account-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    padding: 8px 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .search-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .view-mode-switch {
+        order: -1;
+    }
+
+    .account-cards-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1200px) {
+    .account-cards-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
 }
 
 /* 全局样式 - 与仪表板保持一致 */

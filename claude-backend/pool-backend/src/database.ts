@@ -30,6 +30,7 @@ export interface ClaudeAccount {
   updated_at?: Date;
   created_by?: string;
   notes?: string;
+  unique_name?: string; // 添加unique_name字段
 }
 
 // 使用日志接口
@@ -50,7 +51,7 @@ export interface UsageLog {
 // 管理员操作日志接口
 export interface AdminLog {
   id?: number;
-  action: 'add' | 'update' | 'delete' | 'batch' | 'login';
+  action: 'add' | 'update' | 'delete' | 'batch' | 'login' | 'plugin_add';
   target_email?: string;
   old_data?: any;
   new_data?: any;

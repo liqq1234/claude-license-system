@@ -160,8 +160,8 @@ const loading = ref(false);
 
 // 表单数据
 const loginForm = reactive({
-    email: "test@example.com", // 默认值，方便测试
-    password: "password123", // 默认值，方便测试
+    email: "", // 清空默认值
+    password: "", // 清空默认值
 });
 
 // 轮播图片数据

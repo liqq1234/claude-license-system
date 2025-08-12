@@ -1,0 +1,13 @@
+{
+  "name": "myproject",
+  "version": "1.0.0",
+  "description": "一个完整的Claude账号池管理系统，支持用户注册、激活码验证、账号池管理和直接聊天功能。",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

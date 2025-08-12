@@ -130,6 +130,27 @@ export const claudePoolApi = {
       result += chars.charAt(Math.floor(Math.random() * chars.length))
     }
     return result
+  },
+
+  // 获取单个账户状态
+  getAccountStatus: async (email) => {
+    const response = await apiClient.get(`/api/account-status/${email}`)
+    return response
+  },
+
+  // 获取所有账户状态
+  getAllAccountsStatus: async () => {
+    const response = await apiClient.get('/api/accounts-status')
+    return response
+  },
+
+  // 记录账户使用
+  recordAccountUsage: async (email, userInfo = {}) => {
+    const response = await apiClient.post(`/api/account-usage/${email}`, {
+      user_ip: userInfo.ip,
+      user_agent: userInfo.userAgent || navigator.userAgent
+    })
+    return response
   }
 }
 

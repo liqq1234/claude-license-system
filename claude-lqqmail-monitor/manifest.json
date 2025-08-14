@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Claude LQQMail API Monitor",
+  "version": "1.0.0",
+  "description": "监听 claude.lqqmail.xyz API 请求状态",
+  "permissions": [
+    "webRequest",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://claude.lqqmail.xyz/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://claude.lqqmail.xyz/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js"],
+      "matches": [
+        "https://claude.lqqmail.xyz/*"
+      ]
+    }
+  ]
+}

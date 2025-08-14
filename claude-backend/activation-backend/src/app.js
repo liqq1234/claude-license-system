@@ -6,8 +6,7 @@ const logger = require('./utils/logger');
 const { router: apiRouter } = require('./controllers/api');
 const authRouter = require('./controllers/auth');
 const adminRouter = require('./controllers/admin');
-const emailActivationRouter = require('./controllers/emailActivation')
-const mailcowRouter = require('./controllers/mailcow');
+const emailActivationRouter = require('./controllers/emailActivation');
 // 新的API路由
 const activationApiRouter = require('./routes/activation');
 const proxyApiRouter = require('./routes/proxy');
@@ -60,7 +59,6 @@ app.use('/v1', apiRouter);
 app.use('/auth', authRouter);
 app.use('/admin', adminRouter);
 app.use('/activation', emailActivationRouter);
-app.use('/mailcow', mailcowRouter);
 
 // 新的API路由
 app.use('/api/activation-codes', activationApiRouter);

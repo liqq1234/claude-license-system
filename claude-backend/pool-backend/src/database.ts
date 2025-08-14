@@ -21,6 +21,7 @@ interface DatabaseConfig {
 // Claude 账户接口
 export interface ClaudeAccount {
   id?: number;
+  snowflake_id?: string; // 雪花ID，用于前端标识
   email: string;
   session_key: string;
   status?: number;
@@ -112,6 +113,16 @@ export class DatabaseManager {
     return accounts.length > 0 ? accounts[0] : null;
   }
 
+  // 根据雪花ID获取账户
+  async getAccountBySnowflakeId(snowflakeId: string): Promise<ClaudeAccount | null> {
+    const [rows] = await this.pool.execute(
+      'SELECT * FROM claude_accounts WHERE snowflake_id = ? AND status = 1',
+      [snowflakeId]
+    );
+    const accounts = rows as ClaudeAccount[];
+    return accounts.length > 0 ? accounts[0] : null;
+  }
+
   // 根据ID获取账户
   async getAccountById(id: number): Promise<ClaudeAccount | null> {
     const [rows] = await this.pool.execute(
@@ -184,13 +195,23 @@ export class DatabaseManager {
     return (result as mysql.ResultSetHeader).affectedRows > 0;
   }
 
-  // 更新账户使用统计
+  // 更新账户使用统计（通过邮箱）
   async updateAccountUsage(email: string): Promise<void> {
     await this.pool.execute(
-      `UPDATE claude_accounts 
-       SET usage_count = usage_count + 1, last_used_at = CURRENT_TIMESTAMP 
+      `UPDATE claude_accounts
+       SET usage_count = usage_count + 1, last_used_at = CURRENT_TIMESTAMP
        WHERE email = ?`,
       [email]
+    );
+  }
+
+  // 更新账户使用统计（通过雪花ID）
+  async updateAccountUsageBySnowflakeId(snowflakeId: string): Promise<void> {
+    await this.pool.execute(
+      `UPDATE claude_accounts
+       SET usage_count = usage_count + 1, last_used_at = CURRENT_TIMESTAMP
+       WHERE snowflake_id = ?`,
+      [snowflakeId]
     );
   }
 

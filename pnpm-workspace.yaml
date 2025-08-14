@@ -1,5 +1,0 @@
-packages:
-  - 'claude-frontend'
-  - 'claude-manager' 
-  - 'claude-backend/pool-backend'
-  - 'claude-backend/activation-backend'

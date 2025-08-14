@@ -683,6 +683,7 @@ const fetchAccounts = async () => {
         if (response.status === 0 && response.data) {
             accounts.value = response.data.map((user) => ({
                 id: user.id || user.email,
+                snowflake_id: user.snowflake_id, // 保存snowflake_id，用于后续API调用
                 email: user.email,
                 name: cleanAccountName(user.name || user.email.split("@")[0]),
                 status: user.status || "active",
@@ -781,9 +782,10 @@ const handleRandomLogin = async () => {
     }
 };
 
-// 状态更新函数 - 使用组件的方法
+// 状态更新函数 - 使用组件的方法（保留用于兼容性）
 const updateAccountStatus = (email, newStatus) => {
     console.log(`🎯 Dashboard: 更新账户状态 ${email}`, newStatus);
+    console.log("⚠️ 注意：现在状态由后端管理，本地更新可能会被覆盖");
 
     if (accountGridRef.value) {
         accountGridRef.value.updateAccountStatus(email, newStatus);
@@ -803,18 +805,39 @@ const setAccountLoading = (email, loading) => {
     }
 };
 
-// 记录账户使用（简化版）
+// 记录账户使用（使用 AccountGrid 的方法）
 const recordAccountUsage = async (email) => {
-    console.log("🔗 recordAccountUsage 开始执行");
+    console.log("🔗 Dashboard: recordAccountUsage 开始执行");
     console.log("📧 邮箱:", email);
 
-    try {
-        // 这里可以调用实际的API，现在先模拟成功
-        console.log("✅ recordAccountUsage 模拟成功");
-        return { status: 200, success: true };
-    } catch (error) {
-        console.error("❌ recordAccountUsage 请求失败:", error);
-        throw error;
+    if (
+        accountGridRef.value &&
+        accountGridRef.value.recordAccountUsageToBackend
+    ) {
+        console.log("🔄 使用 AccountGrid 的后端记录方法");
+        const success = await accountGridRef.value.recordAccountUsageToBackend(
+            email
+        );
+        return { status: success ? 200 : 500, success: success };
+    } else {
+        console.warn("⚠️ AccountGrid 组件或方法不可用，使用备用方案");
+        try {
+            // 备用方案：直接调用API
+            // 尝试从accounts中找到对应的snowflake_id
+            const account = accounts.value.find((acc) => acc.email === email);
+            const identifier = account?.snowflake_id || email;
+            console.log("🆔 备用方案使用标识符:", identifier);
+
+            const { claudePoolService } = await import("@/api/claude-pool");
+            const response = await claudePoolService.recordAccountUsage(
+                identifier
+            );
+            console.log("✅ 备用方案记录成功:", response);
+            return { status: 200, success: response && response.success };
+        } catch (error) {
+            console.error("❌ 备用方案记录失败:", error);
+            throw error;
+        }
     }
 };
 
@@ -851,33 +874,20 @@ const handleAccountClick = async (account) => {
                 }
             }
 
-            // 立即更新本地状态为可用状态
-            const newStatus = {
-                status: "available",
-                status_text: "可用",
-                color: "yellow",
-                countdown: "5:00",
-                remaining_seconds: 300,
-                last_used: new Date().toISOString(),
-            };
+            // 记录使用成功后，触发状态同步
+            console.log("🔄 记录使用成功，触发状态同步");
 
-            console.log("🔄 准备更新状态:", newStatus);
-
-            // 使用状态更新函数
-            updateAccountStatus(account.email, newStatus);
-
-            // 使用 nextTick 确保 DOM 更新
-            await nextTick();
-
-            // 验证状态是否真的更新了
-            if (accountGridRef.value) {
-                console.log(
-                    "🔍 更新后的状态:",
-                    accountGridRef.value.accountsStatus[account.email]
-                );
+            if (
+                accountGridRef.value &&
+                accountGridRef.value.fetchAccountsStatusFromBackend
+            ) {
+                console.log("🔄 立即同步后端状态");
+                await accountGridRef.value.fetchAccountsStatusFromBackend();
+            } else {
+                console.warn("⚠️ 无法触发状态同步，AccountGrid 组件不可用");
             }
 
-            ElMessage.success(`${account.email} 状态已更新为可用`);
+            ElMessage.success(`${account.email} 使用已记录，状态已更新`);
         } catch (statusError) {
             console.error("❌ 记录账户使用失败:", statusError);
             console.error("❌ 错误详情:", statusError);

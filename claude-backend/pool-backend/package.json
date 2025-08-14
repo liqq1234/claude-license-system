@@ -10,15 +10,20 @@
 		"db:create": "mysql -u root -p4693090li -e \"CREATE DATABASE IF NOT EXISTS claudehub DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\"",
 		"db:migrate": "npx ts-node scripts/migrate-kv-to-mysql.ts",
 		"db:backup": "npx ts-node scripts/migrate-kv-to-mysql.ts --backup",
-		"test": "npx ts-node test-add-user.js"
+		"test": "npx ts-node test-add-user.js",
+		"test:claude-status": "node test-claude-status.js",
+		"test:rate-limit": "node test-rate-limit-api.js",
+		"test:monitor": "node test-monitor-integration.js"
 	},
 	"dependencies": {
 		"@types/dotenv": "^8.2.3",
+		"@types/node-fetch": "^2.6.13",
 		"cors": "^2.8.5",
 		"dotenv": "^17.2.1",
 		"express": "^4.18.2",
 		"jsonwebtoken": "^9.0.2",
 		"mysql2": "^3.6.5",
+		"node-fetch": "^2.7.0",
 		"swagger-jsdoc": "^6.2.8",
 		"swagger-ui-express": "^5.0.0"
 	},

@@ -20,6 +20,13 @@ import {
   generateUniqueId,
   buildClaudeUrl
 } from './auth/tokenService';
+import {
+  checkClaudeStatus,
+  checkMultipleClaudeStatus,
+  getAvailableClaudeSites,
+  ClaudeStatusResult
+} from './utils/claudeStatusChecker';
+import rateLimitApi from './api/rateLimitApi';
 
 // 确保fetch可用（Node.js 18+内置，否则需要polyfill）
 if (typeof fetch === 'undefined') {
@@ -89,8 +96,17 @@ app.use(cors({
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'sentry-trace',        // Sentry 追踪头部
+    'baggage',             // Sentry 相关头部
+    'x-requested-with',    // AJAX 请求头部
+    'accept',              // 接受类型头部
+    'origin',              // 来源头部
+    'user-agent'           // 用户代理头部
+  ],
   credentials: true // 允许携带cookies
 }));
 
@@ -233,43 +249,7 @@ function maskEmail(email: string): string {
   return `${maskedLocal}@${domain}`;
 }
 
-// 构建直接聊天URL函数
-function buildDirectChatUrl(baseUrl: string, token: string): string {
-  // 根据不同的Claude镜像站点构建合适的聊天URL
-  const url = new URL(baseUrl);
 
-  // 根据域名特征选择合适的路径
-  const hostname = url.hostname.toLowerCase();
-  let chatPath = '/chat';
-
-  if (hostname.includes('claude.ai')) {
-    // 官方Claude.ai
-    chatPath = '/chat';
-  } else if (hostname.includes('fuclaude')) {
-    // FuClaude镜像
-    chatPath = '/chat';
-  } else if (hostname.includes('lqqmail')) {
-    // 你的镜像站点 - 可能需要不同的路径
-    chatPath = '/'; // 尝试根路径
-  } else {
-    // 其他镜像站点，尝试常见路径
-    chatPath = '/';
-  }
-
-  console.log(`🔗 构建聊天URL: ${baseUrl}${chatPath}?token=${token}`);
-  return `${baseUrl}${chatPath}?token=${token}`;
-}
-
-function sortEmails(emails: string[]): string[] {
-  return emails.sort((a, b) => {
-    const aDomain = a.split('@')[1];
-    const bDomain = b.split('@')[1];
-    if (aDomain !== bDomain) {
-      return aDomain.localeCompare(bDomain);
-    }
-    return a.localeCompare(b);
-  });
-}
 
 // Swagger文档路由
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, swaggerUiOptions));
@@ -281,6 +261,9 @@ app.get('/api-docs-json', (req, res) => {
 });
 
 // 路由处理
+
+// 注册限流监控API
+app.use('/api/rate-limit', rateLimitApi);
 
 /**
  * @swagger
@@ -328,6 +311,434 @@ app.get('/health', async (req, res) => {
 
 /**
  * @swagger
+ * /api/claude-status:
+ *   get:
+ *     summary: 检测 Claude 镜像网站状态
+ *     description: 检测指定的 Claude 镜像网站是否可用，包括 429 限流检测和冷却时间获取
+ *     tags: [System]
+ *     parameters:
+ *       - in: query
+ *         name: url
+ *         schema:
+ *           type: string
+ *         description: 要检测的 Claude 镜像网站 URL（可选，默认使用配置的 BASE_URL）
+ *       - in: query
+ *         name: timeout
+ *         schema:
+ *           type: integer
+ *           default: 10000
+ *         description: 请求超时时间（毫秒）
+ *     responses:
+ *       200:
+ *         description: 检测结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 isAvailable:
+ *                   type: boolean
+ *                   description: 网站是否可用
+ *                 statusCode:
+ *                   type: integer
+ *                   description: HTTP 状态码
+ *                 isRateLimited:
+ *                   type: boolean
+ *                   description: 是否被限流 (429)
+ *                 cooldownTime:
+ *                   type: integer
+ *                   description: 冷却时间（秒）
+ *                 retryAfter:
+ *                   type: integer
+ *                   description: Retry-After 头部值（秒）
+ *                 errorMessage:
+ *                   type: string
+ *                   description: 错误信息
+ *                 responseTime:
+ *                   type: integer
+ *                   description: 响应时间（毫秒）
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                   description: 检测时间
+ *             examples:
+ *               available:
+ *                 summary: 网站可用
+ *                 value:
+ *                   isAvailable: true
+ *                   statusCode: 200
+ *                   isRateLimited: false
+ *                   responseTime: 1250
+ *                   timestamp: "2024-01-01T12:00:00.000Z"
+ *               rate_limited:
+ *                 summary: 网站被限流
+ *                 value:
+ *                   isAvailable: false
+ *                   statusCode: 429
+ *                   isRateLimited: true
+ *                   cooldownTime: 300
+ *                   retryAfter: 300
+ *                   errorMessage: "Rate limited (429)"
+ *                   responseTime: 850
+ *                   timestamp: "2024-01-01T12:00:00.000Z"
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+// GET /api/claude-status: 检测 Claude 镜像网站状态
+app.get('/api/claude-status', async (req, res) => {
+  try {
+    const { url, timeout } = req.query;
+
+    // 使用查询参数中的 URL，如果没有则使用配置的 BASE_URL
+    const targetUrl = (url as string) || config.BASE_URL;
+    const timeoutMs = timeout ? parseInt(timeout as string, 10) : 10000;
+
+    console.log(`🔍 检测 Claude 网站状态: ${targetUrl}`);
+
+    // 验证 URL 格式
+    try {
+      new URL(targetUrl);
+    } catch (urlError) {
+      return res.status(400).json({
+        error: 'Invalid URL format',
+        message: 'Please provide a valid URL'
+      });
+    }
+
+    // 验证超时时间
+    if (isNaN(timeoutMs) || timeoutMs < 1000 || timeoutMs > 30000) {
+      return res.status(400).json({
+        error: 'Invalid timeout',
+        message: 'Timeout must be between 1000 and 30000 milliseconds'
+      });
+    }
+
+    // 执行状态检测
+    const result = await checkClaudeStatus(targetUrl, {
+      timeout: timeoutMs,
+      userAgent: getUserAgent(req) || undefined
+    });
+
+    console.log(`📊 Claude 网站状态检测完成: ${targetUrl} - ${result.isAvailable ? '可用' : '不可用'}`);
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('💥 Claude 网站状态检测失败:', error);
+    res.status(500).json({
+      error: 'Status check failed',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/claude-status/batch:
+ *   post:
+ *     summary: 批量检测多个 Claude 镜像网站状态
+ *     description: 同时检测多个 Claude 镜像网站的状态，返回每个网站的详细状态信息
+ *     tags: [System]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               urls:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 要检测的 Claude 镜像网站 URL 列表
+ *                 example: ["https://claude.ai", "https://claude.lqqmail.xyz"]
+ *               timeout:
+ *                 type: integer
+ *                 default: 10000
+ *                 description: 请求超时时间（毫秒）
+ *           example:
+ *             urls: ["https://claude.ai", "https://claude.lqqmail.xyz"]
+ *             timeout: 10000
+ *     responses:
+ *       200:
+ *         description: 批量检测结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 results:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: object
+ *                     properties:
+ *                       isAvailable:
+ *                         type: boolean
+ *                       statusCode:
+ *                         type: integer
+ *                       isRateLimited:
+ *                         type: boolean
+ *                       cooldownTime:
+ *                         type: integer
+ *                       responseTime:
+ *                         type: integer
+ *                       timestamp:
+ *                         type: string
+ *                 summary:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     available:
+ *                       type: integer
+ *                     rateLimited:
+ *                       type: integer
+ *                     unavailable:
+ *                       type: integer
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+// POST /api/claude-status/batch: 批量检测多个 Claude 镜像网站状态
+app.post('/api/claude-status/batch', async (req, res) => {
+  try {
+    const { urls, timeout } = req.body;
+
+    // 验证请求参数
+    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+      return res.status(400).json({
+        error: 'Invalid URLs',
+        message: 'Please provide a non-empty array of URLs'
+      });
+    }
+
+    if (urls.length > 10) {
+      return res.status(400).json({
+        error: 'Too many URLs',
+        message: 'Maximum 10 URLs allowed per batch request'
+      });
+    }
+
+    const timeoutMs = timeout ? parseInt(timeout, 10) : 10000;
+
+    // 验证超时时间
+    if (isNaN(timeoutMs) || timeoutMs < 1000 || timeoutMs > 30000) {
+      return res.status(400).json({
+        error: 'Invalid timeout',
+        message: 'Timeout must be between 1000 and 30000 milliseconds'
+      });
+    }
+
+    // 验证所有 URL 格式
+    for (const url of urls) {
+      if (typeof url !== 'string') {
+        return res.status(400).json({
+          error: 'Invalid URL type',
+          message: 'All URLs must be strings'
+        });
+      }
+
+      try {
+        new URL(url);
+      } catch (urlError) {
+        return res.status(400).json({
+          error: 'Invalid URL format',
+          message: `Invalid URL: ${url}`
+        });
+      }
+    }
+
+    console.log(`🔍 批量检测 ${urls.length} 个 Claude 网站状态`);
+
+    // 执行批量状态检测
+    const results = await checkMultipleClaudeStatus(urls, {
+      timeout: timeoutMs,
+      userAgent: getUserAgent(req) || undefined
+    });
+
+    // 统计结果
+    let available = 0;
+    let rateLimited = 0;
+    let unavailable = 0;
+
+    const resultsObject: Record<string, any> = {};
+
+    for (const [url, result] of results) {
+      resultsObject[url] = result;
+
+      if (result.isAvailable && !result.isRateLimited) {
+        available++;
+      } else if (result.isRateLimited) {
+        rateLimited++;
+      } else {
+        unavailable++;
+      }
+    }
+
+    const summary = {
+      total: urls.length,
+      available,
+      rateLimited,
+      unavailable
+    };
+
+    console.log(`📊 批量检测完成: ${available} 可用, ${rateLimited} 限流, ${unavailable} 不可用`);
+
+    res.json({
+      results: resultsObject,
+      summary
+    });
+
+  } catch (error) {
+    console.error('💥 批量 Claude 网站状态检测失败:', error);
+    res.status(500).json({
+      error: 'Batch status check failed',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/claude-status/available:
+ *   post:
+ *     summary: 获取可用的 Claude 镜像网站
+ *     description: 从提供的 URL 列表中筛选出可用且未被限流的 Claude 镜像网站
+ *     tags: [System]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               urls:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 要检测的 Claude 镜像网站 URL 列表
+ *                 example: ["https://claude.ai", "https://claude.lqqmail.xyz"]
+ *               timeout:
+ *                 type: integer
+ *                 default: 10000
+ *                 description: 请求超时时间（毫秒）
+ *           example:
+ *             urls: ["https://claude.ai", "https://claude.lqqmail.xyz"]
+ *             timeout: 10000
+ *     responses:
+ *       200:
+ *         description: 可用网站列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 availableUrls:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   description: 可用的网站 URL 列表
+ *                 count:
+ *                   type: integer
+ *                   description: 可用网站数量
+ *                 checkedAt:
+ *                   type: string
+ *                   format: date-time
+ *                   description: 检测时间
+ *             example:
+ *               availableUrls: ["https://claude.lqqmail.xyz"]
+ *               count: 1
+ *               checkedAt: "2024-01-01T12:00:00.000Z"
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+// POST /api/claude-status/available: 获取可用的 Claude 镜像网站
+app.post('/api/claude-status/available', async (req, res) => {
+  try {
+    const { urls, timeout } = req.body;
+
+    // 验证请求参数
+    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+      return res.status(400).json({
+        error: 'Invalid URLs',
+        message: 'Please provide a non-empty array of URLs'
+      });
+    }
+
+    if (urls.length > 10) {
+      return res.status(400).json({
+        error: 'Too many URLs',
+        message: 'Maximum 10 URLs allowed per request'
+      });
+    }
+
+    const timeoutMs = timeout ? parseInt(timeout, 10) : 10000;
+
+    // 验证超时时间
+    if (isNaN(timeoutMs) || timeoutMs < 1000 || timeoutMs > 30000) {
+      return res.status(400).json({
+        error: 'Invalid timeout',
+        message: 'Timeout must be between 1000 and 30000 milliseconds'
+      });
+    }
+
+    // 验证所有 URL 格式
+    for (const url of urls) {
+      if (typeof url !== 'string') {
+        return res.status(400).json({
+          error: 'Invalid URL type',
+          message: 'All URLs must be strings'
+        });
+      }
+
+      try {
+        new URL(url);
+      } catch (urlError) {
+        return res.status(400).json({
+          error: 'Invalid URL format',
+          message: `Invalid URL: ${url}`
+        });
+      }
+    }
+
+    console.log(`🔍 检测 ${urls.length} 个 Claude 网站，筛选可用网站`);
+
+    // 获取可用的 Claude 网站
+    const availableUrls = await getAvailableClaudeSites(urls, {
+      timeout: timeoutMs,
+      userAgent: getUserAgent(req) || undefined
+    });
+
+    console.log(`✅ 找到 ${availableUrls.length} 个可用的 Claude 网站`);
+
+    res.json({
+      availableUrls,
+      count: availableUrls.length,
+      checkedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('💥 获取可用 Claude 网站失败:', error);
+    res.status(500).json({
+      error: 'Get available sites failed',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/emails:
  *   get:
  *     summary: 获取可用邮箱列表
@@ -357,7 +768,7 @@ app.get('/api/emails', async (req, res) => {
   try {
     const accounts = await db.getAllAccounts();
     const accountList = accounts.map(account => ({
-      id: account.id,
+      id: account.snowflake_id || account.id, // 优先使用雪花ID，回退到数据库ID
       email: maskEmail(account.email), // 脱敏邮箱
       name: `Claude #${account.id}` // 账号昵称
     }));
@@ -456,9 +867,13 @@ app.post('/api/login', verifyToken, async (req: any, res) => {
 
       if (account_id) {
         // 通过账号ID指定登录（推荐方式）
-        selectedAccount = await db.getAccountById(account_id);
+        // 首先尝试通过雪花ID查找，如果失败则通过数据库ID查找
+        selectedAccount = await db.getAccountBySnowflakeId(account_id.toString());
+        if (!selectedAccount) {
+          selectedAccount = await db.getAccountById(account_id);
+        }
         uniqueName = unique_name || generateUniqueId();
-        console.log(`🎯 通过ID指定账号: ${account_id}`);
+        console.log(`🎯 通过ID指定账号: ${account_id} (雪花ID优先)`);
       } else if (email) {
         // 通过邮箱指定登录（兼容旧版本）
         selectedAccount = await db.getAccountByEmail(email);
@@ -1290,190 +1705,6 @@ app.get('/direct-chat', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/plugin/add-account:
- *   post:
- *     summary: 插件添加账户
- *     description: 供插件调用的接口，用于添加Claude账户到账户池（无需管理员密码）
- *     tags: [Plugin]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - sk
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 description: Claude账户邮箱
- *                 example: "user@example.com"
- *               sk:
- *                 type: string
- *                 description: Claude Session Key
- *                 example: "sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456789"
- *               plugin_name:
- *                 type: string
- *                 description: 插件名称（可选）
- *                 example: "Claude Extension"
- *     responses:
- *       200:
- *         description: 账户添加成功
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Account user@example.com added successfully"
- *                 id:
- *                   type: integer
- *                   description: 新添加账户的ID
- *                   example: 123
- *       400:
- *         description: 请求参数错误
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 error:
- *                   type: string
- *                   example: "Email and SK are required"
- *       409:
- *         description: 邮箱已存在
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 error:
- *                   type: string
- *                   example: "Email already exists"
- *       500:
- *         description: 服务器内部错误
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 error:
- *                   type: string
- *                   example: "Failed to add account"
- */
-// POST /api/plugin/add-account: 插件添加账户接口
-app.post('/api/plugin/add-account', async (req, res) => {
-  try {
-    const { email, sk, plugin_name = 'Unknown Plugin' } = req.body;
-
-    // 验证必需参数
-    if (!email || !sk) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email and SK are required'
-      });
-    }
-
-    // 验证邮箱格式
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid email format'
-      });
-    }
-
-    // 验证Session Key格式
-    if (!sk.startsWith('sk-')) {
-      return res.status(400).json({
-        success: false,
-        error: 'Session Key must start with sk-'
-      });
-    }
-
-    // 检查邮箱是否已存在
-    const existingAccount = await db.getAccountByEmail(email);
-    if (existingAccount) {
-      return res.status(409).json({
-        success: false,
-        error: `Email ${email} already exists`
-      });
-    }
-
-    // 添加账户到数据库
-    const accountId = await db.addAccount({
-      email: email,
-      session_key: sk,
-      status: 1,
-      created_by: plugin_name
-    });
-
-    // 记录插件操作日志
-    try {
-      await db.logAdminAction({
-        action: 'plugin_add',
-        target_email: email,
-        new_data: {
-          email: email,
-          sk: sk.substring(0, 20) + '...',
-          plugin_name: plugin_name
-        },
-        admin_ip: getClientIP(req),
-        user_agent: getUserAgent(req),
-        success: true
-      });
-    } catch (logError) {
-      console.error('Failed to log plugin action:', logError);
-    }
-
-    console.log(`Plugin action: Account ${email} added successfully by ${plugin_name}`);
-
-    res.json({
-      success: true,
-      message: `Account ${email} added successfully`,
-      id: accountId
-    });
-
-  } catch (error) {
-    console.error('Plugin add account failed:', error);
-
-    // 记录失败日志
-    try {
-      await db.logAdminAction({
-        action: 'plugin_add',
-        target_email: req.body.email,
-        admin_ip: getClientIP(req),
-        user_agent: getUserAgent(req),
-        success: false,
-        error_message: error instanceof Error ? error.message : 'Unknown error'
-      });
-    } catch (logError) {
-      console.error('Failed to log plugin action error:', logError);
-    }
-
-    res.status(500).json({
-      success: false,
-      error: 'Failed to add account'
-    });
-  }
-});
 
 /**
  * @swagger
@@ -1522,26 +1753,32 @@ app.post('/api/plugin/add-account', async (req, res) => {
  *                   format: date-time
  *                   example: "2024-01-01T12:00:00Z"
  */
-// GET /api/account-status/:email: 获取账户状态
-app.get('/api/account-status/:email', async (req, res) => {
+// GET /api/account-status/:snowflakeId: 获取账户状态（使用雪花ID）
+app.get('/api/account-status/:snowflakeId', async (req, res) => {
   try {
-    const { email } = req.params;
+    const { snowflakeId } = req.params;
 
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+    console.log(`📊 获取账户状态 - 雪花ID: ${snowflakeId}`);
+
+    if (!snowflakeId) {
+      return res.status(400).json({ error: 'Snowflake ID is required' });
     }
 
     // 获取账户信息
-    const account = await db.getAccountByEmail(email);
+    const account = await db.getAccountBySnowflakeId(snowflakeId);
     if (!account) {
+      console.log(`❌ 账户未找到 - 雪花ID: ${snowflakeId}`);
       return res.status(404).json({ error: 'Account not found' });
     }
 
     // 计算状态
     const status = calculateAccountStatus(account);
 
+    console.log(`✅ 返回账户状态: ${account.email} (雪花ID: ${snowflakeId})`);
+
     res.json({
-      email: email,
+      snowflake_id: snowflakeId,
+      email: account.email,
       ...status
     });
 
@@ -1589,10 +1826,13 @@ app.get('/api/accounts-status', async (req, res) => {
 
     // 计算每个账户的状态
     const accountsWithStatus = accounts.map(account => ({
+      snowflake_id: account.snowflake_id,
       email: account.email,
       unique_name: account.unique_name || account.email.split('@')[0], // 如果没有unique_name，使用邮箱前缀
       ...calculateAccountStatus(account)
     }));
+
+    console.log(`📊 返回 ${accountsWithStatus.length} 个账户状态`);
 
     res.json(accountsWithStatus);
 
@@ -1644,30 +1884,49 @@ app.get('/api/accounts-status', async (req, res) => {
  *                   type: string
  *                   example: "Usage recorded successfully"
  */
-// POST /api/account-usage/:email: 记录账户使用
-app.post('/api/account-usage/:email', async (req, res) => {
+// POST /api/account-usage/:identifier: 记录账户使用（兼容雪花ID和邮箱）
+app.post('/api/account-usage/:identifier', async (req, res) => {
   try {
-    const { email } = req.params;
+    const { identifier } = req.params;
     const { user_ip, user_agent } = req.body;
 
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+    console.log(`📝 记录账户使用 - 标识符: ${identifier}`);
+
+    if (!identifier) {
+      return res.status(400).json({ error: 'Account identifier is required' });
     }
 
-    // 获取账户信息
-    const account = await db.getAccountByEmail(email);
+    // 判断是雪花ID还是邮箱
+    let account = null;
+    const isEmail = identifier.includes('@');
+
+    if (isEmail) {
+      console.log(`📧 使用邮箱查找账户: ${identifier}`);
+      account = await db.getAccountByEmail(identifier);
+    } else {
+      console.log(`🆔 使用雪花ID查找账户: ${identifier}`);
+      account = await db.getAccountBySnowflakeId(identifier);
+    }
+
     if (!account) {
+      console.log(`❌ 账户未找到 - 标识符: ${identifier}`);
       return res.status(404).json({ error: 'Account not found' });
     }
 
+    console.log(`✅ 找到账户: ${account.email} (${isEmail ? '邮箱' : '雪花ID'}: ${identifier})`);
+
     // 更新账户使用统计
-    await db.updateAccountUsage(email);
+    if (isEmail) {
+      await db.updateAccountUsage(identifier);
+    } else {
+      await db.updateAccountUsageBySnowflakeId(identifier);
+    }
 
     // 记录使用日志
     try {
       await db.logAdminAction({
         action: 'login',
-        target_email: email,
+        target_email: account.email,
         admin_ip: user_ip || getClientIP(req),
         user_agent: user_agent || getUserAgent(req),
         success: true
@@ -1676,7 +1935,7 @@ app.post('/api/account-usage/:email', async (req, res) => {
       console.error('Failed to log usage:', logError);
     }
 
-    console.log(`Account usage recorded: ${email}`);
+    console.log(`✅ 账户使用已记录: ${account.email} (${isEmail ? '邮箱' : '雪花ID'}: ${identifier})`);
 
     res.json({
       success: true,

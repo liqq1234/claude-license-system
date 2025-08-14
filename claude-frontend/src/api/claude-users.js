@@ -11,7 +11,7 @@ const claudeUsersApi = axios.create({
 
 // 创建用于Claude Pool的axios实例 - 连接到pool-backend
 const claudePoolApi = axios.create({
-  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:8787',
+  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:3457',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json'
@@ -103,6 +103,7 @@ export const claudeUsersService = {
         // 将账号列表转换为用户列表格式
         const userList = response.accounts.map((account, index) => ({
           id: account.id || `claude_user_${index + 1}`,
+          snowflake_id: account.id, // 保存snowflake_id，用于后续API调用
           email: account.email, // 已经是脱敏后的邮箱
           name: account.name || account.email.split('@')[0], // 使用账号昵称或邮箱前缀
           status: 'active',

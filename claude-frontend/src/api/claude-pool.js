@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // 创建专门用于Claude Pool Manager的axios实例
 const claudePoolApi = axios.create({
-  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:3456', // Claude Pool Manager后端地址
+  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:3457', // Claude Pool Manager后端地址
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -66,16 +66,20 @@ export const claudePoolService = {
     return response
   },
 
-  // 获取单个账户状态
-  getAccountStatus: async (email) => {
-    const response = await claudePoolApi.get(`/api/account-status/${email}`)
+  // 获取单个账户状态（使用雪花ID）
+  getAccountStatus: async (snowflakeId) => {
+    console.log('🔗 claudePoolService.getAccountStatus 开始执行');
+    console.log('🆔 雪花ID:', snowflakeId);
+
+    const response = await claudePoolApi.get(`/api/account-status/${snowflakeId}`)
+    console.log('✅ getAccountStatus 成功响应:', response);
     return response
   },
 
-  // 记录账户使用
-  recordAccountUsage: async (email, userInfo = {}) => {
+  // 记录账户使用（使用雪花ID）
+  recordAccountUsage: async (snowflakeId, userInfo = {}) => {
     console.log('🔗 claudePoolService.recordAccountUsage 开始执行');
-    console.log('📧 邮箱:', email);
+    console.log('🆔 雪花ID:', snowflakeId);
     console.log('👤 用户信息:', userInfo);
 
     const payload = {
@@ -84,10 +88,10 @@ export const claudePoolService = {
     }
 
     console.log('📦 请求载荷:', payload);
-    console.log('🌐 请求URL:', `/api/account-usage/${email}`);
+    console.log('🌐 请求URL:', `/api/account-usage/${snowflakeId}`);
 
     try {
-      const response = await claudePoolApi.post(`/api/account-usage/${email}`, payload)
+      const response = await claudePoolApi.post(`/api/account-usage/${snowflakeId}`, payload)
       console.log('✅ recordAccountUsage 成功响应:', response);
       return response
     } catch (error) {

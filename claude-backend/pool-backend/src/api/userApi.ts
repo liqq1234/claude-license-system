@@ -26,14 +26,14 @@ export function createUserRouter(db: DatabaseManager) {
    */
   router.get('/emails', async (req: Request, res: Response) => {
     try {
-      const accounts = await db.getAvailableAccounts();
-      
-      const maskedAccounts = accounts.map(account => ({
+      const accounts = await db.getAllAccounts();
+
+      const maskedAccounts = accounts.map((account: any) => ({
         id: account.id,
         email: maskEmail(account.email),
         status: account.status,
-        last_used: account.last_used,
-        expires_at: account.expires_at
+        last_used: account.last_used_at,
+        usage_count: account.usage_count
       }));
 
       res.json({
@@ -62,7 +62,7 @@ export function createUserRouter(db: DatabaseManager) {
    */
   router.post('/login', verifyToken, async (req: Request, res: Response) => {
     try {
-      const { email } = req.body;
+      const { email, expires_in } = req.body;
       const clientIP = getClientIP(req);
       const userAgent = getUserAgent(req);
 
@@ -82,36 +82,40 @@ export function createUserRouter(db: DatabaseManager) {
         });
       }
 
-      if (account.status !== 'active') {
+      if (account.status !== 1) {
         return res.status(403).json({
           success: false,
           error: '账户不可用'
         });
       }
 
-      // 检查session是否过期
-      if (account.expires_at && new Date(account.expires_at) < new Date()) {
-        return res.status(403).json({
-          success: false,
-          error: 'Session已过期'
-        });
-      }
-
       // 更新最后使用时间
-      await db.updateAccountLastUsed(email);
+      await db.updateAccountUsage(email);
 
       // 记录使用日志
       await db.logUsage({
+        account_id: account.id!,
         email: email,
-        ip_address: clientIP,
+        login_mode: 'specific',
+        client_ip: clientIP,
         user_agent: userAgent,
-        action: 'login',
-        timestamp: new Date()
+        success: true
       });
 
+      // 生成唯一名称
+      const uniqueName = `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
       // 生成安全登录token
-      const loginToken = generateSecureLoginToken(account.session_key);
-      const claudeUrl = buildClaudeUrl(loginToken);
+      const loginTokenPayload = {
+        userId: account.id!.toString(),
+        accountId: account.id!,
+        sessionKey: account.session_key,
+        uniqueName: uniqueName,
+        expiresIn: expires_in || 0,
+        email: email
+      };
+      const loginToken = await generateSecureLoginToken(loginTokenPayload);
+      const claudeUrl = buildClaudeUrl(account.session_key, uniqueName, expires_in);
 
       res.json({
         success: true,
@@ -119,7 +123,7 @@ export function createUserRouter(db: DatabaseManager) {
         claude_url: claudeUrl,
         account: {
           email: maskEmail(account.email),
-          expires_at: account.expires_at
+          usage_count: account.usage_count
         }
       });
     } catch (error) {
@@ -168,8 +172,8 @@ export function createUserRouter(db: DatabaseManager) {
           status: status.status,
           message: status.message,
           available: status.available,
-          last_used: account.last_used,
-          expires_at: account.expires_at
+          last_used: account.last_used_at,
+          usage_count: account.usage_count
         }
       });
     } catch (error) {
@@ -201,8 +205,8 @@ export function createUserRouter(db: DatabaseManager) {
           status: status.status,
           message: status.message,
           available: status.available,
-          last_used: account.last_used,
-          expires_at: account.expires_at
+          last_used: account.last_used_at,
+          usage_count: account.usage_count
         };
       });
 
@@ -263,16 +267,16 @@ export function createUserRouter(db: DatabaseManager) {
 
       // 记录使用日志
       await db.logUsage({
+        account_id: account.id!,
         email: account.email,
-        ip_address: clientIP,
+        login_mode: 'specific',
+        client_ip: clientIP,
         user_agent: userAgent,
-        action: action || 'usage',
-        details: details,
-        timestamp: new Date()
+        success: true
       });
 
       // 更新最后使用时间
-      await db.updateAccountLastUsed(account.email);
+      await db.updateAccountUsage(account.email);
 
       res.json({
         success: true,

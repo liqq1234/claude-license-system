@@ -145,3 +145,13 @@ SELECT TABLE_NAME, TABLE_COMMENT
 FROM INFORMATION_SCHEMA.TABLES 
 WHERE TABLE_SCHEMA = 'claudehub' 
 ORDER BY TABLE_NAME;
+
+
+-- 添加账号状态字段
+ALTER TABLE claude_accounts ADD COLUMN account_status ENUM('idle', 'available', 'busy') DEFAULT 'idle' COMMENT '账号状态: idle=空闲, available=可用, busy=繁忙' AFTER rate_limit_reset_at;
+
+-- 添加索引
+ALTER TABLE claude_accounts ADD INDEX idx_account_status (account_status);
+
+-- 查看修改结果
+DESCRIBE claude_accounts;

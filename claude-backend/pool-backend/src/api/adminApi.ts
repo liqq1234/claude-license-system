@@ -61,7 +61,7 @@ export function createAdminRouter(db: DatabaseManager) {
    */
   router.post('/add', requireAdminPassword, async (req: Request, res: Response) => {
     try {
-      const { email, session_key, refresh_token, expires_at } = req.body;
+      const { email, session_key, notes } = req.body;
 
       if (!email || !session_key) {
         return res.status(400).json({
@@ -82,30 +82,27 @@ export function createAdminRouter(db: DatabaseManager) {
       const accountData = {
         email,
         session_key,
-        refresh_token: refresh_token || null,
-        expires_at: expires_at ? new Date(expires_at) : null,
-        status: 'active' as const,
-        last_used: null,
-        created_at: new Date(),
-        updated_at: new Date()
+        status: 1, // 1 for active, 0 for inactive
+        created_by: 'admin',
+        notes: notes || null
       };
 
       const result = await db.addAccount(accountData);
 
       // 记录管理员操作日志
       await db.logAdminAction({
-        action: 'add_account',
+        action: 'add',
         target_email: email,
         admin_ip: getClientIP(req),
         user_agent: getUserAgent(req),
-        details: `添加账户: ${maskEmail(email)}`,
-        timestamp: new Date()
+        success: true,
+        new_data: { email, session_key: session_key.substring(0, 10) + '...' }
       });
 
       res.json({
         success: true,
         message: '账户添加成功',
-        account_id: result.insertId
+        account_id: result
       });
     } catch (error) {
       console.error('添加账户失败:', error);
@@ -149,12 +146,11 @@ export function createAdminRouter(db: DatabaseManager) {
 
       // 记录管理员操作日志
       await db.logAdminAction({
-        action: 'delete_account',
+        action: 'delete',
         target_email: email,
         admin_ip: getClientIP(req),
         user_agent: getUserAgent(req),
-        details: `删除账户: ${maskEmail(email)}`,
-        timestamp: new Date()
+        success: true
       });
 
       res.json({
@@ -212,12 +208,12 @@ export function createAdminRouter(db: DatabaseManager) {
 
       // 记录管理员操作日志
       await db.logAdminAction({
-        action: 'update_account',
+        action: 'update',
         target_email: email,
         admin_ip: getClientIP(req),
         user_agent: getUserAgent(req),
-        details: `更新账户: ${maskEmail(email)}`,
-        timestamp: new Date()
+        success: true,
+        new_data: updateData
       });
 
       res.json({

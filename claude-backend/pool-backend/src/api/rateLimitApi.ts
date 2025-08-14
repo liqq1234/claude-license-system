@@ -5,9 +5,11 @@
  */
 
 import { Router, Request, Response } from 'express';
-// import { accountStatusManager } from '../managers/accountStatusManager';
+import { DatabaseManager } from '../database';
 
-const router = Router();
+// 创建路由的工厂函数
+export function createRateLimitRouter(db: DatabaseManager) {
+  const router = Router();
 
 interface RateLimitData {
   type: string;
@@ -86,7 +88,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
     
     // 处理限流数据
-    const processResult = await processRateLimitData(rateLimitData);
+    const processResult = await processRateLimitData(rateLimitData, db);
 
     res.json({
       success: true,
@@ -97,7 +99,9 @@ router.post('/', async (req: Request, res: Response) => {
         resetsAt: rateLimitData.resetsAt,
         resetTime: rateLimitData.resetsAt ? new Date(rateLimitData.resetsAt * 1000).toLocaleString('zh-CN') : undefined,
         cooldownSeconds: processResult?.cooldownSeconds,
-        organizationId: processResult?.organizationId
+        organizationId: processResult?.organizationId,
+        email: processResult?.email,
+        accountFound: processResult?.accountFound
       },
       timestamp: new Date().toISOString()
     });
@@ -115,12 +119,14 @@ interface ProcessResult {
   cooldownSeconds: number;
   organizationId?: string;
   resetTime?: string;
+  email?: string;
+  accountFound?: boolean;
 }
 
 /**
  * 处理限流数据
  */
-async function processRateLimitData(data: RateLimitData): Promise<ProcessResult> {
+async function processRateLimitData(data: RateLimitData, db: DatabaseManager): Promise<ProcessResult> {
   try {
     console.log('\n🚨🚨🚨 [429 限流检测] 🚨🚨🚨');
     console.log(`📍 来源: ${data.source || 'unknown'}`);
@@ -201,10 +207,49 @@ async function processRateLimitData(data: RateLimitData): Promise<ProcessResult>
     
     // 尝试从URL中提取组织ID
     let organizationId: string | undefined;
+    let email: string | undefined;
+    let accountFound = false;
+
     const orgMatch = data.url.match(/\/organizations\/([a-f0-9-]{36})\//);
     if (orgMatch) {
       organizationId = orgMatch[1];
       console.log(`🏢 提取到组织ID: ${organizationId}`);
+
+      // 根据组织ID查找对应的账户
+      try {
+        const account = await db.getAccountByOrganizationId(organizationId);
+        if (account) {
+          email = account.email;
+          accountFound = true;
+          console.log(`✅ 找到对应账户: ${email}`);
+
+          // 更新账户的限流状态
+          if (resetTimestamp) {
+            const resetDate = new Date(resetTimestamp);
+            const success = await db.updateAccountRateLimit(email, resetDate);
+
+            if (success) {
+              console.log(`🔄 已更新账户 ${email} 的限流状态:`);
+              console.log(`   - 重置时间: ${resetDate.toLocaleString('zh-CN')}`);
+
+              // 同时将账户状态设置为繁忙
+              const statusUpdated = await db.updateAccountStatus(email, 'busy');
+              if (statusUpdated) {
+                console.log(`🚫 已将账户 ${email} 状态设置为繁忙`);
+              }
+            } else {
+              console.error(`❌ 更新账户 ${email} 限流状态失败`);
+            }
+          }
+
+        } else {
+          console.log(`⚠️ 未找到组织ID ${organizationId} 对应的账户`);
+        }
+      } catch (dbError) {
+        console.error(`💥 数据库操作失败:`, dbError);
+      }
+    } else {
+      console.log(`⚠️ 无法从URL中提取组织ID: ${data.url}`);
     }
 
     console.log('🚨🚨🚨 [429 限流检测结束] 🚨🚨🚨\n');
@@ -212,7 +257,9 @@ async function processRateLimitData(data: RateLimitData): Promise<ProcessResult>
     return {
       cooldownSeconds,
       organizationId,
-      resetTime: resetTimestamp ? new Date(resetTimestamp).toLocaleString('zh-CN') : undefined
+      resetTime: resetTimestamp ? new Date(resetTimestamp).toLocaleString('zh-CN') : undefined,
+      email,
+      accountFound
     };
 
   } catch (error) {
@@ -265,7 +312,7 @@ router.post('/test', async (req: Request, res: Response) => {
     };
     
     // 处理测试数据
-    await processRateLimitData(testData);
+    await processRateLimitData(testData, db);
     
     res.json({
       success: true,
@@ -283,4 +330,8 @@ router.post('/test', async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+  return router;
+}
+
+// 保持向后兼容的默认导出
+export default createRateLimitRouter;

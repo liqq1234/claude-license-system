@@ -3,7 +3,7 @@ console.log('🔧 Claude LQQMail API Monitor 后台脚本启动');
 
 // 后端配置
 const BACKEND_CONFIG = {
-  url: 'http://localhost:3000/api/claude-status', // 修改为您的后端地址
+  url: 'http://localhost:8787/api/rate-limit', // pool-backend 限流监控接口
   enabled: true,
   timeout: 5000
 };
@@ -13,8 +13,10 @@ async function sendToBackend(data) {
   if (!BACKEND_CONFIG.enabled) return;
   
   try {
-    console.log('📤 发送API状态到后端:', data);
-    
+    console.log('� [Claude Monitor] 准备发送限流数据到 pool-backend');
+    console.log('📍 目标地址:', BACKEND_CONFIG.url);
+    console.log('📤 发送数据:', JSON.stringify(data, null, 2));
+
     const response = await fetch(BACKEND_CONFIG.url, {
       method: 'POST',
       headers: {
@@ -26,13 +28,17 @@ async function sendToBackend(data) {
     
     if (response.ok) {
       const result = await response.json();
-      console.log('✅ 后端接收成功:', result);
+      console.log('✅ [Claude Monitor] pool-backend 接收成功!');
+      console.log('📋 响应结果:', JSON.stringify(result, null, 2));
       return result;
     } else {
-      console.warn('⚠️ 后端响应错误:', response.status, response.statusText);
+      console.warn('⚠️ [Claude Monitor] pool-backend 响应错误:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.warn('📄 错误详情:', errorText);
     }
   } catch (error) {
-    console.error('❌ 发送到后端失败:', error);
+    console.error('❌ [Claude Monitor] 发送到 pool-backend 失败:', error);
+    console.error('🔍 错误详情:', error.message);
   }
 }
 

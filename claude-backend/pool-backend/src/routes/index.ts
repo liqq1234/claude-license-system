@@ -6,10 +6,10 @@
 import { Router } from 'express';
 import { DatabaseManager } from '../database';
 import { healthRouter } from './health';
-import { router as rateLimitRouter } from '../api/rateLimitApi';
-import { router as claudeStatusRouter } from '../api/claudeStatusApi';
+import { createRateLimitRouter } from '../api/rateLimitApi';
 import { createAdminRouter } from '../api/adminApi';
 import { createUserRouter } from '../api/userApi';
+import { createAccountStatusRouter } from '../api/accountStatusApi';
 
 export function createApiRouter(db: DatabaseManager) {
   const router = Router();
@@ -18,8 +18,8 @@ export function createApiRouter(db: DatabaseManager) {
   router.use('/health', healthRouter);
 
   // API 路由
-  router.use('/api/rate-limit', rateLimitRouter);
-  router.use('/api/claude-status', claudeStatusRouter);
+  router.use('/api/rate-limit', createRateLimitRouter(db));
+  router.use('/api/account-status', createAccountStatusRouter(db));
   router.use('/api/admin', createAdminRouter(db));
   router.use('/api', createUserRouter(db));
 

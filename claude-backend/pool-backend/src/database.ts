@@ -32,6 +32,9 @@ export interface ClaudeAccount {
   created_by?: string;
   notes?: string;
   unique_name?: string; // 添加unique_name字段
+  organization_id?: string; // 组织ID
+  rate_limit_reset_at?: Date | null; // 限流重置时间
+  account_status?: 'idle' | 'available' | 'busy'; // 账号状态
 }
 
 // 使用日志接口
@@ -61,6 +64,21 @@ export interface AdminLog {
   success: boolean;
   error_message?: string;
   batch_id?: string;
+  created_at?: Date;
+}
+
+// 限流日志接口
+export interface RateLimitLog {
+  id?: number;
+  account_id?: number;
+  email?: string;
+  organization_id?: string;
+  url: string;
+  limit_type?: string;
+  resets_at?: Date;
+  cooldown_seconds?: number;
+  source?: string;
+  raw_data?: any;
   created_at?: Date;
 }
 
@@ -282,6 +300,170 @@ export class DatabaseManager {
       accounts: (accountStats as any[])[0],
       today: (todayUsage as any[])[0]
     };
+  }
+
+  // 根据组织ID获取账户
+  async getAccountByOrganizationId(organizationId: string): Promise<ClaudeAccount | null> {
+    const [rows] = await this.pool.execute(
+      'SELECT * FROM claude_accounts WHERE organization_id = ? AND status = 1',
+      [organizationId]
+    );
+    const accounts = rows as ClaudeAccount[];
+    return accounts.length > 0 ? accounts[0] : null;
+  }
+
+  // 更新账户限流状态
+  async updateAccountRateLimit(email: string, resetAt: Date): Promise<boolean> {
+    const [result] = await this.pool.execute(
+      `UPDATE claude_accounts
+       SET rate_limit_reset_at = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE email = ?`,
+      [resetAt, email]
+    );
+    return (result as mysql.ResultSetHeader).affectedRows > 0;
+  }
+
+  // 清除账户限流状态
+  async clearAccountRateLimit(email: string): Promise<boolean> {
+    const [result] = await this.pool.execute(
+      `UPDATE claude_accounts
+       SET rate_limit_reset_at = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE email = ?`,
+      [email]
+    );
+    return (result as mysql.ResultSetHeader).affectedRows > 0;
+  }
+
+  // 记录限流日志
+  async logRateLimit(log: RateLimitLog): Promise<void> {
+    await this.pool.execute(
+      `INSERT INTO claude_rate_limit_logs
+       (account_id, email, organization_id, url, limit_type, resets_at, cooldown_seconds, source, raw_data)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        log.account_id || null,
+        log.email || null,
+        log.organization_id || null,
+        log.url,
+        log.limit_type || null,
+        log.resets_at || null,
+        log.cooldown_seconds || null,
+        log.source || null,
+        log.raw_data ? JSON.stringify(log.raw_data) : null
+      ]
+    );
+  }
+
+  // 获取账户当前限流状态
+  async getAccountRateLimitStatus(email: string): Promise<{
+    isRateLimited: boolean;
+    resetAt?: Date;
+    remainingSeconds?: number;
+  }> {
+    const account = await this.getAccountByEmail(email);
+    if (!account || !account.rate_limit_reset_at) {
+      return { isRateLimited: false };
+    }
+
+    const now = new Date();
+    const resetAt = new Date(account.rate_limit_reset_at);
+
+    // 如果重置时间已过，清除限流状态
+    if (resetAt <= now) {
+      await this.clearAccountRateLimit(email);
+      return { isRateLimited: false };
+    }
+
+    const remainingSeconds = Math.ceil((resetAt.getTime() - now.getTime()) / 1000);
+
+    return {
+      isRateLimited: true,
+      resetAt,
+      remainingSeconds
+    };
+  }
+
+  // 更新账户状态
+  async updateAccountStatus(email: string, status: 'idle' | 'available' | 'busy'): Promise<boolean> {
+    const [result] = await this.pool.execute(
+      `UPDATE claude_accounts
+       SET account_status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE email = ?`,
+      [status, email]
+    );
+    return (result as mysql.ResultSetHeader).affectedRows > 0;
+  }
+
+  // 批量更新账户状态
+  async batchUpdateAccountStatus(emails: string[], status: 'idle' | 'available' | 'busy'): Promise<number> {
+    if (emails.length === 0) return 0;
+
+    const placeholders = emails.map(() => '?').join(',');
+    const [result] = await this.pool.execute(
+      `UPDATE claude_accounts
+       SET account_status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE email IN (${placeholders})`,
+      [status, ...emails]
+    );
+    return (result as mysql.ResultSetHeader).affectedRows;
+  }
+
+  // 根据状态获取账户列表
+  async getAccountsByStatus(status: 'idle' | 'available' | 'busy'): Promise<ClaudeAccount[]> {
+    const [rows] = await this.pool.execute(
+      'SELECT * FROM claude_accounts WHERE account_status = ? AND status = 1 ORDER BY last_used_at ASC',
+      [status]
+    );
+    return rows as ClaudeAccount[];
+  }
+
+  // 获取可用账户（空闲或可用状态，且未被限流）
+  async getAvailableAccountsForUse(): Promise<ClaudeAccount[]> {
+    const now = new Date();
+    const [rows] = await this.pool.execute(
+      `SELECT * FROM claude_accounts
+       WHERE status = 1
+         AND account_status IN ('idle', 'available')
+         AND (rate_limit_reset_at IS NULL OR rate_limit_reset_at <= ?)
+       ORDER BY
+         CASE account_status
+           WHEN 'available' THEN 1
+           WHEN 'idle' THEN 2
+         END,
+         last_used_at ASC`,
+      [now]
+    );
+    return rows as ClaudeAccount[];
+  }
+
+  // 获取账户状态统计
+  async getAccountStatusStats(): Promise<{
+    idle: number;
+    available: number;
+    busy: number;
+    rate_limited: number;
+    total: number;
+  }> {
+    const now = new Date();
+    const [rows] = await this.pool.execute(
+      `SELECT
+         account_status,
+         COUNT(*) as count,
+         SUM(CASE WHEN rate_limit_reset_at IS NOT NULL AND rate_limit_reset_at > ? THEN 1 ELSE 0 END) as rate_limited_count
+       FROM claude_accounts
+       WHERE status = 1
+       GROUP BY account_status`
+    , [now]);
+
+    const stats = { idle: 0, available: 0, busy: 0, rate_limited: 0, total: 0 };
+
+    (rows as any[]).forEach(row => {
+      stats[row.account_status as keyof typeof stats] = row.count;
+      stats.rate_limited += row.rate_limited_count;
+      stats.total += row.count;
+    });
+
+    return stats;
   }
 
   // 关闭连接池

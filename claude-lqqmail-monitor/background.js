@@ -141,6 +141,30 @@ chrome.webRequest.onCompleted.addListener(
   ["responseHeaders"]
 );
 
+// 监听来自inject script的限流数据
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'RATE_LIMIT_DATA' && message.data) {
+    console.log('📊 收到页面级限流数据:', message.data);
+
+    // 合并数据并发送到后端
+    const enhancedData = {
+      ...message.data,
+      type: 'enhanced_rate_limit',
+      source: 'inject_script'
+    };
+
+    sendToBackend(enhancedData);
+
+    // 也发送到content script显示
+    if (sender.tab && sender.tab.id) {
+      chrome.tabs.sendMessage(sender.tab.id, {
+        type: 'API_STATUS_UPDATE',
+        data: enhancedData
+      }).catch(err => console.log('发送增强限流数据到内容脚本失败:', err));
+    }
+  }
+});
+
 // 监听请求错误
 chrome.webRequest.onErrorOccurred.addListener(
   function(details) {

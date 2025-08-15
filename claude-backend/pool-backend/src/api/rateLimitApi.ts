@@ -11,7 +11,15 @@ import { DatabaseManager } from '../database';
 export function createRateLimitRouter(db: DatabaseManager) {
   const router = Router();
 
-interface RateLimitData {
+// 新的前端发送格式
+interface RateLimitRequest {
+  orgId: string;               // 组织ID (必需)
+  resetAt: number;             // 重置时间戳 (秒) (必需)
+  timestamp: number;           // 检测时间戳 (毫秒) (必需)
+}
+
+// 兼容旧格式的接口
+interface LegacyRateLimitData {
   type: string;
   timestamp: number;
   url: string;
@@ -39,7 +47,7 @@ interface RateLimitData {
  * /api/rate-limit:
  *   post:
  *     summary: 接收429限流数据
- *     description: 接收来自 claude-api-monitor 的429限流检测数据
+ *     description: 接收来自 claude-lqqmail-monitor 扩展的429限流检测数据
  *     tags: [Rate Limit]
  *     requestBody:
  *       required: true
@@ -47,65 +55,102 @@ interface RateLimitData {
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - orgId
+ *               - resetAt
+ *               - timestamp
  *             properties:
- *               type:
+ *               orgId:
  *                 type: string
- *                 example: "rate_limit_detected"
+ *                 description: 组织ID
+ *                 example: "org_abc123def456"
+ *               resetAt:
+ *                 type: number
+ *                 description: 限制重置时间戳 (秒)
+ *                 example: 1755147600
  *               timestamp:
  *                 type: number
+ *                 description: 检测时间戳 (毫秒)
  *                 example: 1640995200000
- *               url:
- *                 type: string
- *                 example: "https://claude.ai/api/organizations/.../completion"
- *               resetsAt:
- *                 type: number
- *                 example: 1755147600
- *               limitType:
- *                 type: string
- *                 example: "five_hour"
- *               source:
- *                 type: string
- *                 example: "api_response"
  *     responses:
  *       200:
  *         description: 成功接收限流数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     orgId:
+ *                       type: string
+ *                     resetAt:
+ *                       type: number
+ *                     resetTime:
+ *                       type: string
+ *                     cooldownSeconds:
+ *                       type: number
+ *                     email:
+ *                       type: string
+ *                     accountFound:
+ *                       type: boolean
  *       400:
  *         description: 请求数据格式错误
  */
-// POST /api/rate-limit: 接收429限流数据
+// POST /api/rate-limit: 接收429限流数据 (新格式)
 router.post('/', async (req: Request, res: Response) => {
+  console.log('🚀 [DEBUG] 进入 /api/rate-limit POST 路由');
+  console.log('🚀 [DEBUG] 请求方法:', req.method);
+  console.log('🚀 [DEBUG] 请求路径:', req.path);
+  console.log('🚀 [DEBUG] 请求头:', JSON.stringify(req.headers, null, 2));
+  console.log('🚀 [DEBUG] 原始请求体:', JSON.stringify(req.body, null, 2));
+
   try {
-    const rateLimitData: RateLimitData = req.body;
-    
-    console.log('📥 接收到429限流数据:', JSON.stringify(rateLimitData, null, 2));
-    
+    const requestData: RateLimitRequest = req.body;
+
+    console.log('📥 [新格式] 接收到429限流数据:', JSON.stringify(requestData, null, 2));
+
     // 验证必要字段
-    if (!rateLimitData.type || !rateLimitData.timestamp) {
+    if (!requestData.orgId || !requestData.resetAt || !requestData.timestamp) {
       return res.status(400).json({
         error: 'Invalid data format',
-        message: 'Missing required fields: type, timestamp'
+        message: 'Missing required fields: orgId, resetAt, timestamp'
       });
     }
-    
+
+    // 验证数据格式
+    if (typeof requestData.orgId !== 'string' ||
+        typeof requestData.resetAt !== 'number' ||
+        typeof requestData.timestamp !== 'number') {
+      return res.status(400).json({
+        error: 'Invalid data types',
+        message: 'orgId must be string, resetAt and timestamp must be numbers'
+      });
+    }
+
     // 处理限流数据
-    const processResult = await processRateLimitData(rateLimitData, db);
+    const processResult = await processNewRateLimitData(requestData, db);
 
     res.json({
       success: true,
       message: 'Rate limit data received and processed successfully',
       data: {
-        source: rateLimitData.source || 'unknown',
-        limitType: rateLimitData.limitType || 'unknown',
-        resetsAt: rateLimitData.resetsAt,
-        resetTime: rateLimitData.resetsAt ? new Date(rateLimitData.resetsAt * 1000).toLocaleString('zh-CN') : undefined,
-        cooldownSeconds: processResult?.cooldownSeconds,
-        organizationId: processResult?.organizationId,
-        email: processResult?.email,
-        accountFound: processResult?.accountFound
+        orgId: requestData.orgId,
+        resetAt: requestData.resetAt,
+        resetTime: new Date(requestData.resetAt * 1000).toLocaleString('zh-CN'),
+        cooldownSeconds: processResult.cooldownSeconds,
+        email: processResult.email,
+        accountFound: processResult.accountFound,
+        statusUpdated: processResult.statusUpdated
       },
       timestamp: new Date().toISOString()
     });
-    
+
   } catch (error) {
     console.error('💥 处理429限流数据失败:', error);
     res.status(500).json({
@@ -121,12 +166,102 @@ interface ProcessResult {
   resetTime?: string;
   email?: string;
   accountFound?: boolean;
+  statusUpdated?: boolean;
 }
 
 /**
- * 处理限流数据
+ * 处理新格式的限流数据
  */
-async function processRateLimitData(data: RateLimitData, db: DatabaseManager): Promise<ProcessResult> {
+async function processNewRateLimitData(data: RateLimitRequest, db: DatabaseManager): Promise<ProcessResult> {
+  try {
+    console.log('\n🚨🚨🚨 [429 限流检测 - 新格式] 🚨🚨🚨');
+    console.log(`🏢 组织ID: ${data.orgId}`);
+    console.log(`⏰ 检测时间: ${new Date(data.timestamp).toLocaleString('zh-CN')}`);
+    console.log(`🎯 重置时间戳: ${data.resetAt}`);
+
+    // 计算重置时间和冷却时间
+    const resetTimestamp = data.resetAt * 1000; // 转换为毫秒
+    const resetDate = new Date(resetTimestamp);
+    const cooldownSeconds = Math.max(0, Math.ceil((resetTimestamp - Date.now()) / 1000));
+
+    console.log(`🕐 重置时间: ${resetDate.toLocaleString('zh-CN')}`);
+    console.log(`❄️ 冷却时间: ${cooldownSeconds} 秒`);
+
+    // 格式化冷却时间显示
+    const cooldownMinutes = Math.ceil(cooldownSeconds / 60);
+    const cooldownHours = Math.floor(cooldownMinutes / 60);
+    const remainingMinutes = cooldownMinutes % 60;
+
+    if (cooldownHours > 0) {
+      console.log(`⏳ 格式化时间: ${cooldownHours}小时 ${remainingMinutes}分钟`);
+    } else {
+      console.log(`⏳ 格式化时间: ${cooldownMinutes}分钟`);
+    }
+
+    let email: string | undefined;
+    let accountFound = false;
+    let statusUpdated = false;
+
+    // 根据组织ID查找对应的账户
+    try {
+      const account = await db.getAccountByOrganizationId(data.orgId);
+      if (account) {
+        email = account.email;
+        accountFound = true;
+        console.log(`✅ 找到对应账户: ${email}`);
+
+        // 更新账户的限流状态
+        const success = await db.updateAccountRateLimit(email, resetDate);
+
+        if (success) {
+          console.log(`🔄 已更新账户 ${email} 的限流状态:`);
+          console.log(`   - 重置时间: ${resetDate.toLocaleString('zh-CN')}`);
+
+          // 同时将账户状态设置为繁忙
+          statusUpdated = await db.updateAccountStatus(email, 'busy');
+          if (statusUpdated) {
+            console.log(`🚫 已将账户 ${email} 状态设置为繁忙`);
+          } else {
+            console.warn(`⚠️ 更新账户 ${email} 状态为繁忙失败`);
+          }
+        } else {
+          console.error(`❌ 更新账户 ${email} 限流状态失败`);
+        }
+
+      } else {
+        console.log(`⚠️ 未找到组织ID ${data.orgId} 对应的账户`);
+      }
+    } catch (dbError) {
+      console.error(`💥 数据库操作失败:`, dbError);
+    }
+
+    console.log('🚨🚨🚨 [429 限流检测结束 - 新格式] 🚨🚨🚨\n');
+
+    return {
+      cooldownSeconds,
+      organizationId: data.orgId,
+      resetTime: resetDate.toLocaleString('zh-CN'),
+      email,
+      accountFound,
+      statusUpdated
+    };
+
+  } catch (error) {
+    console.error('💥 处理新格式限流数据异常:', error);
+    return {
+      cooldownSeconds: 300,
+      organizationId: data.orgId,
+      resetTime: undefined,
+      accountFound: false,
+      statusUpdated: false
+    };
+  }
+}
+
+/**
+ * 处理限流数据 (兼容旧格式)
+ */
+async function processRateLimitData(data: LegacyRateLimitData, db: DatabaseManager): Promise<ProcessResult> {
   try {
     console.log('\n🚨🚨🚨 [429 限流检测] 🚨🚨🚨');
     console.log(`📍 来源: ${data.source || 'unknown'}`);
@@ -217,7 +352,7 @@ async function processRateLimitData(data: RateLimitData, db: DatabaseManager): P
 
       // 根据组织ID查找对应的账户
       try {
-        const account = await db.getAccountByOrganizationId(organizationId);
+        const account = organizationId ? await db.getAccountByOrganizationId(organizationId) : null;
         if (account) {
           email = account.email;
           accountFound = true;
@@ -285,46 +420,78 @@ async function processRateLimitData(data: RateLimitData, db: DatabaseManager): P
  *       200:
  *         description: 测试数据发送成功
  */
-// POST /api/rate-limit/test: 测试接口
-router.post('/test', async (req: Request, res: Response) => {
+// POST /api/rate-limit/test: 测试接口 (新格式)
+router.post('/test', async (_req: Request, res: Response) => {
   try {
-    console.log('🧪 执行429限流数据测试...');
-    
-    // 模拟 claude-api-monitor 发送的数据
-    const testData: RateLimitData = {
-      type: 'rate_limit_detected',
-      timestamp: Date.now(),
-      url: 'https://claude.lqqmail.xyz/api/organizations/7b8556b4-d293-4e5c-af82-ba03e4d26238/chat_conversations/4dcc96ed-c1d1-4a92-90ac-d84f444249b1/completion',
-      status: 429,
-      statusText: 'Too Many Requests',
-      resetsAt: Math.floor(Date.now() / 1000) + 300, // 5分钟后重置
-      limitType: 'five_hour',
-      source: 'api_response',
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      hostname: 'claude.lqqmail.xyz',
-      rawResponse: {
-        type: 'exceeded_limit',
-        resetsAt: Math.floor(Date.now() / 1000) + 300,
-        remaining: null,
-        perModelLimit: false,
-        representativeClaim: 'five_hour'
-      }
+    console.log('🧪 执行429限流数据测试 (新格式)...');
+
+    // 模拟前端扩展发送的新格式数据
+    const testData: RateLimitRequest = {
+      orgId: 'org_7b8556b4-d293-4e5c-af82-ba03e4d26238',
+      resetAt: Math.floor(Date.now() / 1000) + 300, // 5分钟后重置
+      timestamp: Date.now()
     };
-    
+
+    console.log('🧪 测试数据:', testData);
+
     // 处理测试数据
-    await processRateLimitData(testData, db);
-    
+    const result = await processNewRateLimitData(testData, db);
+
     res.json({
       success: true,
-      message: 'Test rate limit data processed successfully',
+      message: 'Test rate limit data processed successfully (new format)',
       testData,
+      result,
       timestamp: new Date().toISOString()
     });
-    
+
   } catch (error) {
     console.error('💥 测试429限流数据失败:', error);
     res.status(500).json({
       error: 'Test rate limit data failed',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// POST /api/rate-limit/legacy: 兼容旧格式的接口
+router.post('/legacy', async (req: Request, res: Response) => {
+  try {
+    const rateLimitData: LegacyRateLimitData = req.body;
+
+    console.log('📥 [旧格式] 接收到429限流数据:', JSON.stringify(rateLimitData, null, 2));
+
+    // 验证必要字段
+    if (!rateLimitData.type || !rateLimitData.timestamp) {
+      return res.status(400).json({
+        error: 'Invalid data format',
+        message: 'Missing required fields: type, timestamp'
+      });
+    }
+
+    // 处理限流数据
+    const processResult = await processRateLimitData(rateLimitData, db);
+
+    res.json({
+      success: true,
+      message: 'Legacy rate limit data received and processed successfully',
+      data: {
+        source: rateLimitData.source || 'unknown',
+        limitType: rateLimitData.limitType || 'unknown',
+        resetsAt: rateLimitData.resetsAt,
+        resetTime: rateLimitData.resetsAt ? new Date(rateLimitData.resetsAt * 1000).toLocaleString('zh-CN') : undefined,
+        cooldownSeconds: processResult?.cooldownSeconds,
+        organizationId: processResult?.organizationId,
+        email: processResult?.email,
+        accountFound: processResult?.accountFound
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('💥 处理旧格式429限流数据失败:', error);
+    res.status(500).json({
+      error: 'Process legacy rate limit data failed',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }

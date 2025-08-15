@@ -26,7 +26,7 @@ import {
   getAvailableClaudeSites,
   ClaudeStatusResult
 } from './utils/claudeStatusChecker';
-import rateLimitApi from './api/rateLimitApi';
+import { createRateLimitRouter } from './api/rateLimitApi';
 
 // 确保fetch可用（Node.js 18+内置，否则需要polyfill）
 if (typeof fetch === 'undefined') {
@@ -89,12 +89,35 @@ app.use(cors({
     // 允许没有origin的请求（如移动应用、Postman等）
     if (!origin) return callback(null, true);
 
+    // 检查是否在允许的域名列表中
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
-    } else {
-      console.warn(`🚨 CORS blocked request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      return;
     }
+
+    // 允许 Chrome 扩展请求
+    if (origin && origin.startsWith('chrome-extension://')) {
+      console.log(`✅ 允许 Chrome 扩展请求: ${origin}`);
+      callback(null, true);
+      return;
+    }
+
+    // 允许 Edge 扩展请求
+    if (origin && origin.startsWith('moz-extension://')) {
+      console.log(`✅ 允许 Firefox 扩展请求: ${origin}`);
+      callback(null, true);
+      return;
+    }
+
+    // 允许 Edge 扩展请求
+    if (origin && origin.startsWith('ms-browser-extension://')) {
+      console.log(`✅ 允许 Edge 扩展请求: ${origin}`);
+      callback(null, true);
+      return;
+    }
+
+    console.warn(`🚨 CORS blocked request from origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
@@ -111,6 +134,24 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' })); // 限制请求体大小
+
+// 请求日志中间件 (用于调试)
+app.use((req, res, next) => {
+  const timestamp = new Date().toLocaleString('zh-CN');
+  console.log(`📡 [${timestamp}] ${req.method} ${req.path} - Origin: ${req.get('origin') || 'none'}`);
+
+  // 特别记录 rate-limit 相关的请求
+  if (req.path.includes('rate-limit')) {
+    console.log(`🎯 [RATE-LIMIT] 详细信息:`);
+    console.log(`   - 方法: ${req.method}`);
+    console.log(`   - 路径: ${req.path}`);
+    console.log(`   - 完整URL: ${req.originalUrl}`);
+    console.log(`   - Content-Type: ${req.get('content-type')}`);
+    console.log(`   - 请求体大小: ${JSON.stringify(req.body).length} 字符`);
+  }
+
+  next();
+});
 
 // 安全头部中间件
 app.use((req, res, next) => {
@@ -263,7 +304,7 @@ app.get('/api-docs-json', (req, res) => {
 // 路由处理
 
 // 注册限流监控API
-app.use('/api/rate-limit', rateLimitApi);
+app.use('/api/rate-limit', createRateLimitRouter(db));
 
 /**
  * @swagger

@@ -385,12 +385,7 @@ class ActivationService {
       // 总体统计
       const totalCodes = await ActivationCode.count()
       const usedCodes = await ActivationCode.count({ where: { status: 'used' } })
-      const expiredCodes = await ActivationCode.count({ 
-        where: { 
-          expires_at: { [Op.lt]: new Date() },
-          status: 'unused'
-        } 
-      })
+      const expiredCodes = await ActivationCode.count({ where: { status: 'expired' } })
 
       // 按服务类型统计
       const serviceStats = await ActivationCode.findAll({

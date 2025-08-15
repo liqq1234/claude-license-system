@@ -992,6 +992,9 @@ router.get('/admin/codes/:code', apiController.getCodeDetails.bind(apiController
  */
 router.post('/admin/generate-codes', apiController.generateCodes.bind(apiController))
 
+// 删除激活码
+router.delete('/admin/codes/:code', apiController.deleteCode.bind(apiController))
+
 // 系统接口
 router.get('/status', (req, res) => {
   res.json({ status: 0, message: '服务正常' })

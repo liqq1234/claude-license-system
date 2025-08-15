@@ -11,7 +11,7 @@ const claudeUsersApi = axios.create({
 
 // 创建用于Claude Pool的axios实例 - 连接到pool-backend
 const claudePoolApi = axios.create({
-  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:3457',
+  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:8787',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json'

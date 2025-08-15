@@ -116,7 +116,8 @@ class CleanupService {
    */
   async cleanupExpiredActivationCodes() {
     try {
-      const result = await ActivationCode.update(
+      // 更新未使用的过期激活码
+      const unusedResult = await ActivationCode.update(
         { status: 'expired' },
         {
           where: {
@@ -126,7 +127,24 @@ class CleanupService {
         }
       )
 
-      return result[0] || 0
+      // 更新已使用但过期的激活码
+      const usedResult = await ActivationCode.update(
+        { status: 'expired' },
+        {
+          where: {
+            expires_at: { [Op.lt]: new Date() },
+            status: 'used'
+          }
+        }
+      )
+
+      const totalUpdated = (unusedResult[0] || 0) + (usedResult[0] || 0)
+
+      if (totalUpdated > 0) {
+        logger.debug(`更新过期激活码状态: 未使用${unusedResult[0] || 0}个, 已使用${usedResult[0] || 0}个`)
+      }
+
+      return totalUpdated
     } catch (error) {
       logger.error('清理过期激活码失败:', error)
       return 0

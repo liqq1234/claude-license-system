@@ -122,10 +122,10 @@
                     </div>
                 </div>
 
-                <!-- Claude账号列表 -->
+                <!-- Claude列表 -->
                 <div class="accounts-section">
                     <div class="accounts-header">
-                        <h2 class="accounts-title">可用账号</h2>
+                        <h2 class="accounts-title">Claude</h2>
                     </div>
 
                     <!-- 账号网格组件 -->
@@ -380,7 +380,7 @@ const showUserMenu = ref(false);
 const redeemCode = ref("");
 const activeTab = ref("basic");
 
-// 账号列表相关数据
+// 账户列表相关数据
 const accounts = ref([]);
 const loading = ref(false);
 const error = ref(false);
@@ -652,7 +652,7 @@ const handleAvatarError = () => {
     // 头像加载失败时，el-avatar 会自动显示 slot 中的内容（用户名首字母）
 };
 
-// 获取账号列表
+// 获取账户列表
 const fetchAccounts = async () => {
     loading.value = true;
     error.value = false;
@@ -680,7 +680,7 @@ const fetchAccounts = async () => {
     }
 };
 
-// 刷新账号列表
+// 刷新账户列表
 const refreshAccounts = () => {
     fetchAccounts();
 };

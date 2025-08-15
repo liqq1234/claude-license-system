@@ -14,7 +14,7 @@
         <!-- 账号网格 -->
         <div v-else-if="accounts.length > 0" class="accounts-grid-desktop">
             <AccountCard
-                v-for="account in accounts"
+                v-for="account in sortedAccounts"
                 :key="account.id || account.email"
                 :account="account"
                 :status="getAccountStatus(account.email)"
@@ -30,57 +30,6 @@
             <div class="empty-icon">📝</div>
             <div class="empty-text">暂无可用账号</div>
             <button class="refresh-btn" @click="$emit('retry')">刷新列表</button>
-        </div>
-
-        <!-- 调试面板 -->
-        <div v-if="showDebugPanel" class="debug-panel">
-            <div class="debug-header">
-                <h3>🔧 调试面板</h3>
-                <button @click="showDebugPanel = false" class="close-debug">×</button>
-            </div>
-
-            <div class="debug-content">
-                <div class="debug-section">
-                    <h4>账户状态 ({{ Object.keys(accountsStatus).length }}个):</h4>
-                    <pre>{{ JSON.stringify(accountsStatus, null, 2) }}</pre>
-                </div>
-
-                <div class="debug-section">
-                    <h4>强制刷新值:</h4>
-                    <p>{{ forceRefreshStatus }}</p>
-                </div>
-
-                <div class="debug-section">
-                    <h4>后端同步状态:</h4>
-                    <p>初始化: {{ isInitialized ? '✅' : '❌' }}</p>
-                    <p>定时器: {{ statusSyncInterval ? '🟢 运行中' : '🔴 已停止' }}</p>
-                    <p>最后同步: {{ lastSyncTime || '未同步' }}</p>
-                    <p>错误数量: {{ syncErrors.length }}</p>
-                </div>
-
-                <div v-if="syncErrors.length > 0" class="debug-section">
-                    <h4>同步错误记录:</h4>
-                    <div class="error-list">
-                        <div
-                            v-for="(error, index) in syncErrors.slice(-3)"
-                            :key="index"
-                            class="error-item"
-                        >
-                            <small>{{ error.time }}</small>
-                            <div>{{ error.email || 'N/A' }} - {{ error.action || 'sync' }}</div>
-                            <div class="error-msg">{{ error.message }}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="debug-actions">
-                    <button @click="testStatusUpdate" class="debug-btn primary">测试状态更新</button>
-                    <button @click="forceRefreshStatus++" class="debug-btn secondary">强制刷新UI</button>
-                    <button @click="clearAllStatus" class="debug-btn danger">清空所有状态</button>
-                    <button @click="fetchAccountsStatusFromBackend" class="debug-btn info">立即同步状态</button>
-                    <button @click="syncErrors = []" class="debug-btn warning">清空错误记录</button>
-                </div>
-            </div>
         </div>
     </div>
 </template>
@@ -114,13 +63,48 @@ const emit = defineEmits(["account-click", "retry"]);
 const accountsStatus = reactive({});
 const accountsLoading = reactive({});
 const forceRefreshStatus = ref(0);
-const showDebugPanel = ref(false);
 
 // 后端状态同步相关
 const statusSyncInterval = ref(null);
 const lastSyncTime = ref(null);
 const syncErrors = ref([]);
 const isInitialized = ref(false);
+
+// 排序后的账户列表
+const sortedAccounts = computed(() => {
+    if (!props.accounts || props.accounts.length === 0) {
+        return [];
+    }
+
+    // 创建账户副本并添加状态信息
+    const accountsWithStatus = props.accounts.map((account) => ({
+        ...account,
+        currentStatus: getAccountStatus(account.email),
+    }));
+
+    // 定义状态优先级 (数字越小优先级越高)
+    const statusPriority = {
+        idle: 1, // 空闲状态优先级最高
+        available: 2, // 可用状态次之
+        busy: 3, // 繁忙状态最后
+    };
+
+    // 按状态优先级排序
+    return accountsWithStatus.sort((a, b) => {
+        const statusA = a.currentStatus?.status || "available";
+        const statusB = b.currentStatus?.status || "available";
+
+        const priorityA = statusPriority[statusA] || 999;
+        const priorityB = statusPriority[statusB] || 999;
+
+        // 如果状态优先级相同，按邮箱字母顺序排序
+        if (priorityA === priorityB) {
+            return a.email.localeCompare(b.email);
+        }
+
+        return priorityA - priorityB;
+    });
+});
 
 // 计算属性
 const getAccountStatus = (email) => {
@@ -186,38 +170,6 @@ const handleStatusUpdate = (email) => {
 
     // 立即刷新状态
     fetchAccountsStatusFromBackend();
-};
-
-const testStatusUpdate = () => {
-    console.log("🧪 测试状态更新");
-
-    if (props.accounts.length === 0) {
-        console.log("❌ 没有账户可以测试");
-        return;
-    }
-
-    const testAccount = props.accounts[0];
-    const testEmail = testAccount.email;
-
-    console.log(`🧪 测试账户: ${testEmail}`);
-
-    const newStatus = {
-        status: "available",
-        status_text: "测试可用",
-        color: "yellow",
-        countdown: "3:00",
-        remaining_seconds: 180,
-        last_used: new Date().toISOString(),
-    };
-
-    updateAccountStatus(testEmail, newStatus);
-};
-
-const clearAllStatus = () => {
-    console.log("🧹 清空所有状态");
-    Object.keys(accountsStatus).forEach((key) => delete accountsStatus[key]);
-    Object.keys(accountsLoading).forEach((key) => delete accountsLoading[key]);
-    forceRefreshStatus.value++;
 };
 
 // ========== 后端状态同步功能 ==========
@@ -601,173 +553,5 @@ defineExpose({
 
 .refresh-btn:hover {
     background: #b8621a;
-}
-
-/* 调试面板样式 */
-.debug-panel {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: white;
-    border: 2px solid #d2691e;
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    z-index: 1000;
-    max-width: 600px;
-    max-height: 80vh;
-    overflow-y: auto;
-}
-
-.debug-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid #eee;
-    background: #f8f9fa;
-}
-
-.debug-header h3 {
-    margin: 0;
-    color: #333;
-}
-
-.close-debug {
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    color: #999;
-}
-
-.debug-content {
-    padding: 20px;
-}
-
-.debug-section {
-    margin-bottom: 20px;
-}
-
-.debug-section h4 {
-    margin: 0 0 10px 0;
-    color: #d2691e;
-    font-size: 14px;
-}
-
-.debug-section pre {
-    background: #f5f7fa;
-    padding: 12px;
-    border-radius: 4px;
-    font-size: 12px;
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid #e4e7ed;
-}
-
-.debug-section p {
-    margin: 8px 0;
-    font-family: monospace;
-    background: #f5f7fa;
-    padding: 4px 8px;
-    border-radius: 4px;
-    display: inline-block;
-}
-
-.debug-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.debug-btn {
-    padding: 6px 12px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-}
-
-.debug-btn.primary {
-    background: #007bff;
-    color: white;
-}
-
-.debug-btn.secondary {
-    background: #6c757d;
-    color: white;
-}
-
-.debug-btn.danger {
-    background: #dc3545;
-    color: white;
-}
-
-.debug-btn.info {
-    background: #17a2b8;
-    color: white;
-}
-
-.debug-btn.warning {
-    background: #ffc107;
-    color: #212529;
-}
-
-.debug-btn:hover {
-    opacity: 0.8;
-}
-
-/* 错误列表样式 */
-.error-list {
-    max-height: 150px;
-    overflow-y: auto;
-    border: 1px solid #e4e7ed;
-    border-radius: 4px;
-    background: #fff5f5;
-}
-
-.error-item {
-    padding: 8px;
-    border-bottom: 1px solid #fed7d7;
-    font-size: 11px;
-}
-
-.error-item:last-child {
-    border-bottom: none;
-}
-
-.error-item small {
-    color: #999;
-    display: block;
-    margin-bottom: 2px;
-}
-
-.error-msg {
-    color: #e53e3e;
-    font-weight: 500;
-}
-
-/* 调试切换按钮 */
-.debug-toggle {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 999;
-}
-
-.toggle-debug-btn {
-    padding: 8px 12px;
-    background: #6366f1;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-}
-
-.toggle-debug-btn:hover {
-    background: #4f46e5;
 }
 </style>

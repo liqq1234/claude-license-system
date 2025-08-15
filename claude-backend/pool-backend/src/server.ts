@@ -80,6 +80,8 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:8080',
   'http://localhost:8081',
+  'http://localhost:8083', // 添加8083端口支持
+  'http://localhost:5173', // 添加Vite默认端口
   'http://localhost:3457',
   'https://claude.lqqmail.xyz',
   'https://www.claude.lqqmail.xyz',

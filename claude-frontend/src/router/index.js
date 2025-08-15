@@ -48,7 +48,7 @@ const routes = [
     component: Dashboard,
     meta: {
       requiresAuth: true,
-      title: 'Claude 国内 - 账号管理'
+      title: 'Claude 国内'
     }
   },
   {
@@ -75,7 +75,7 @@ const routes = [
     component: Dashboard,
     meta: {
       requiresAuth: true,
-      title: 'Claude 账号管理'
+      title: 'Claude 国内'
     }
   },
   {
@@ -84,7 +84,7 @@ const routes = [
     component: AccountStatusTest,
     meta: {
       requiresAuth: true,
-      title: '账户状态管理'
+      title: '账户状态'
     }
   },
   {

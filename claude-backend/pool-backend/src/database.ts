@@ -193,6 +193,10 @@ export class DatabaseManager {
       fields.push('organization_id = ?');
       values.push(updates.organization_id);
     }
+    if (updates.account_status !== undefined) {
+      fields.push('account_status = ?');
+      values.push(updates.account_status);
+    }
 
     if (fields.length === 0) {
       return false;

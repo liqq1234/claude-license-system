@@ -20,6 +20,8 @@
                 :status="getAccountStatus(account.email)"
                 :loading="getAccountLoading(account.email)"
                 @click="handleAccountClick"
+                @activate="handleAccountActivate"
+                @status-update="handleStatusUpdate"
             />
         </div>
 
@@ -79,14 +81,6 @@
                     <button @click="syncErrors = []" class="debug-btn warning">清空错误记录</button>
                 </div>
             </div>
-        </div>
-
-        <!-- 调试按钮 -->
-        <div class="debug-toggle">
-            <button
-                @click="showDebugPanel = !showDebugPanel"
-                class="toggle-debug-btn"
-            >{{ showDebugPanel ? '隐藏' : '显示' }}调试面板</button>
         </div>
     </div>
 </template>
@@ -176,6 +170,24 @@ const setAccountLoading = (email, loading) => {
     accountsLoading[email] = loading;
 };
 
+// 处理账户激活
+const handleAccountActivate = (account) => {
+    console.log("🚀 AccountGrid: 账户激活", account.email);
+
+    // 立即刷新状态
+    setTimeout(() => {
+        fetchAccountsStatusFromBackend();
+    }, 1000);
+};
+
+// 处理状态更新请求
+const handleStatusUpdate = (email) => {
+    console.log("🔄 AccountGrid: 请求更新状态", email);
+
+    // 立即刷新状态
+    fetchAccountsStatusFromBackend();
+};
+
 const testStatusUpdate = () => {
     console.log("🧪 测试状态更新");
 
@@ -216,39 +228,54 @@ const fetchAccountsStatusFromBackend = async () => {
 
     try {
         const startTime = Date.now();
-        const statusList = await claudePoolService.getAllAccountsStatus();
+        const response = await claudePoolService.getAllAccountsStatus();
         const endTime = Date.now();
 
         console.log(`✅ 后端状态获取成功，耗时: ${endTime - startTime}ms`);
-        console.log(
-            `📊 获取到 ${statusList?.length || 0} 个账户状态:`,
-            statusList
-        );
+        console.log(`📊 获取到响应:`, response);
 
-        if (Array.isArray(statusList)) {
+        // 检查响应格式
+        if (response && response.success && Array.isArray(response.data)) {
+            const statusList = response.data;
+            console.log(
+                `📊 获取到 ${statusList.length} 个账户状态:`,
+                statusList
+            );
+
             // 清空旧状态
             Object.keys(accountsStatus).forEach(
                 (key) => delete accountsStatus[key]
             );
 
             // 更新状态映射
-            statusList.forEach((status) => {
-                if (status.email) {
-                    accountsStatus[status.email] = {
-                        // 保留状态信息
-                        status: status.status || "idle",
-                        status_text: status.status_text || "空闲",
-                        color: status.color || "green",
-                        countdown: status.countdown || "",
-                        remaining_seconds: status.remaining_seconds || 0,
-                        last_used: status.last_used || null,
-                        // 额外保存映射：email -> snowflake_id，供后续调用使用
-                        snowflake_id: status.snowflake_id || null,
+            statusList.forEach((accountStatus) => {
+                if (accountStatus.email) {
+                    // 计算状态显示信息
+                    const statusInfo = getStatusDisplayInfo(accountStatus);
+
+                    accountsStatus[accountStatus.email] = {
+                        // 基础状态信息
+                        status: accountStatus.status || "idle",
+                        status_text: statusInfo.statusText,
+                        color: statusInfo.color,
+
+                        // 倒计时相关
+                        countdown: statusInfo.countdown,
+                        remaining_seconds: accountStatus.recoverySeconds || 0,
+
+                        // 其他信息
+                        last_used: accountStatus.lastUsedAt || null,
+                        account_id: accountStatus.id || null,
                     };
+
                     console.log(
-                        `📝 更新账户状态: ${status.email} -> ${
-                            status.status_text
-                        } (snowflake_id=${status.snowflake_id || "N/A"})`
+                        `📝 更新账户状态: ${accountStatus.email} -> ${
+                            statusInfo.statusText
+                        } ${
+                            statusInfo.countdown
+                                ? `(${statusInfo.countdown})`
+                                : ""
+                        }`
                     );
                 }
             });
@@ -267,7 +294,9 @@ const fetchAccountsStatusFromBackend = async () => {
 
             return true;
         } else {
-            throw new Error("返回的数据不是数组格式");
+            throw new Error(
+                "返回的数据格式不正确: " + JSON.stringify(response)
+            );
         }
     } catch (error) {
         console.error("❌ 获取后端状态失败:", error);
@@ -288,6 +317,63 @@ const fetchAccountsStatusFromBackend = async () => {
 
         ElMessage.error(`获取账户状态失败: ${error.message}`);
         return false;
+    }
+};
+
+// 根据账户状态计算显示信息
+const getStatusDisplayInfo = (accountStatus) => {
+    const status = accountStatus.status || "idle";
+    let statusText = "空闲";
+    let color = "green";
+    let countdown = "";
+
+    switch (status) {
+        case "idle":
+            statusText = "空闲";
+            color = "green";
+            break;
+        case "available":
+            statusText = "可用";
+            color = "yellow";
+            break;
+        case "busy":
+            statusText = "繁忙";
+            color = "red";
+            // 计算倒计时
+            if (
+                accountStatus.recoverySeconds &&
+                accountStatus.recoverySeconds > 0
+            ) {
+                countdown = formatTime(accountStatus.recoverySeconds);
+                statusText = `繁忙 (${countdown})`;
+            }
+            break;
+        default:
+            statusText = "未知";
+            color = "gray";
+    }
+
+    return {
+        statusText,
+        color,
+        countdown,
+    };
+};
+
+// 格式化时间显示
+const formatTime = (seconds) => {
+    if (!seconds || seconds <= 0) return "";
+
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
+            .toString()
+            .padStart(2, "0")}`;
+    } else {
+        return `${minutes}:${secs.toString().padStart(2, "0")}`;
     }
 };
 

@@ -111,27 +111,7 @@
                                 />
                             </svg>
                         </button>
-                        <button class="random-login-btn" @click="handleRandomLogin">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="16"
-                                height="16"
-                                fill="currentColor"
-                                viewBox="0 0 256 256"
-                            >
-                                <path
-                                    d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Z"
-                                />
-                            </svg>
-                            随机登录
-                        </button>
-
-                        <!-- 调试按钮 -->
-                        <button
-                            v-if="accounts.length > 0"
-                            class="test-btn"
-                            @click="testAccountClick"
-                        >🧪 测试点击第一个账户</button>
+                        <button class="random-login-btn" @click="handleRandomLogin">随机登录</button>
                     </div>
 
                     <!-- 标签栏 -->
@@ -782,18 +762,6 @@ const handleRandomLogin = async () => {
     }
 };
 
-// 状态更新函数 - 使用组件的方法（保留用于兼容性）
-const updateAccountStatus = (email, newStatus) => {
-    console.log(`🎯 Dashboard: 更新账户状态 ${email}`, newStatus);
-    console.log("⚠️ 注意：现在状态由后端管理，本地更新可能会被覆盖");
-
-    if (accountGridRef.value) {
-        accountGridRef.value.updateAccountStatus(email, newStatus);
-    } else {
-        console.warn("⚠️ AccountGrid 组件引用不存在");
-    }
-};
-
 // 设置账户加载状态
 const setAccountLoading = (email, loading) => {
     console.log(`🔄 Dashboard: 设置账户加载状态 ${email}:`, loading);
@@ -988,23 +956,6 @@ const handleAccountClick = async (account) => {
     }
 };
 
-// 测试点击账户函数
-const testAccountClick = () => {
-    console.log("🧪 测试按钮被点击");
-
-    if (accounts.value.length === 0) {
-        console.log("❌ 没有账户可以测试");
-        ElMessage.warning("没有账户可以测试");
-        return;
-    }
-
-    const testAccount = accounts.value[0];
-    console.log("🧪 准备测试账户:", testAccount);
-
-    // 直接调用 handleAccountClick
-    handleAccountClick(testAccount);
-};
-
 // 点击外部关闭用户菜单
 const handleClickOutside = (event) => {
     if (!event.target.closest(".user-menu")) {
@@ -1014,16 +965,6 @@ const handleClickOutside = (event) => {
 
 onMounted(() => {
     console.log("🎯 Dashboard组件已挂载，开始初始化...");
-
-    // 测试 handleAccountClick 函数是否存在
-    console.log("🧪 测试 handleAccountClick 函数:", typeof handleAccountClick);
-
-    // 暴露到全局用于调试
-    window.handleAccountClick = handleAccountClick;
-    window.accounts = accounts;
-    window.accountGridRef = accountGridRef;
-    window.updateAccountStatus = updateAccountStatus;
-    console.log("🌐 已将调试函数暴露到全局 window 对象");
 
     document.addEventListener("click", handleClickOutside);
 
@@ -1361,7 +1302,6 @@ onMounted(() => {
 .random-login-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
     padding: 10px 16px;
     background: #d2691e;
     border: 1px solid #d2691e;
@@ -1376,27 +1316,6 @@ onMounted(() => {
 .random-login-btn:hover {
     background: #b8621a;
     border-color: #b8621a;
-}
-
-/* 测试按钮样式 */
-.test-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 10px 16px;
-    background: #6366f1;
-    border: 1px solid #6366f1;
-    border-radius: 6px;
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.test-btn:hover {
-    background: #4f46e5;
-    border-color: #4f46e5;
 }
 
 /* 标签栏 */

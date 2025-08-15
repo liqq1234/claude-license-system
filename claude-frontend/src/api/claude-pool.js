@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // 创建专门用于Claude Pool Manager的axios实例
 const claudePoolApi = axios.create({
-  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:3457', // Claude Pool Manager后端地址
+  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:8787', // Claude Pool Manager后端地址
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -60,9 +60,9 @@ export const claudePoolService = {
     return result
   },
 
-  // 获取所有账户状态
+  // 获取所有账户状态（新版本）
   getAllAccountsStatus: async () => {
-    const response = await claudePoolApi.get('/api/accounts-status')
+    const response = await claudePoolApi.get('/api/accounts/status')
     return response
   },
 
@@ -73,6 +73,22 @@ export const claudePoolService = {
 
     const response = await claudePoolApi.get(`/api/account-status/${snowflakeId}`)
     console.log('✅ getAccountStatus 成功响应:', response);
+    return response
+  },
+
+  // 激活账户
+  activateAccount: async (accountId) => {
+    console.log('🚀 激活账户:', accountId);
+    const response = await claudePoolApi.post(`/api/accounts/${accountId}/activate`)
+    console.log('✅ 账户激活响应:', response);
+    return response
+  },
+
+  // 设置账户限流状态（测试用）
+  setAccountRateLimit: async (accountId, minutes = 5) => {
+    console.log('⏰ 设置账户限流:', accountId, minutes);
+    const response = await claudePoolApi.post(`/api/accounts/${accountId}/set-rate-limit`, { minutes })
+    console.log('✅ 限流设置响应:', response);
     return response
   },
 

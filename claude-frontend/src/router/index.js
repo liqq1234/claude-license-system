@@ -8,6 +8,7 @@ const ForgotPassword = () => import('@/views/auth/ForgotPassword.vue')
 const Dashboard = () => import('@/views/Dashboard.vue')
 const Profile = () => import('@/views/Profile.vue')
 const ActivationCode = () => import('@/views/activation/ActivationCode.vue')
+const AccountStatusTest = () => import('@/views/AccountStatusTest.vue')
 
 const routes = [
   {
@@ -75,6 +76,15 @@ const routes = [
     meta: {
       requiresAuth: true,
       title: 'Claude 账号管理'
+    }
+  },
+  {
+    path: '/account-status-test',
+    name: 'AccountStatusTest',
+    component: AccountStatusTest,
+    meta: {
+      requiresAuth: true,
+      title: '账户状态管理'
     }
   },
   {

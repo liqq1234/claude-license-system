@@ -358,6 +358,374 @@ app.get('/api-docs-json', (req, res) => {
 // 注册限流监控API
 app.use('/api/rate-limit', createRateLimitRouter(db));
 
+// 账户状态管理函数
+async function updateAccountStatus(accountId: number, email: string): Promise<void> {
+  try {
+    const account = await db.getAccountByEmail(email);
+    if (!account) return;
+
+    const now = new Date();
+    let newStatus: 'idle' | 'available' | 'busy' = account.account_status || 'idle';
+
+    // 检查是否应该设为繁忙状态
+    if (account.rate_limit_reset_at && account.rate_limit_reset_at > now) {
+      newStatus = 'busy';
+    } else if (account.rate_limit_reset_at && account.rate_limit_reset_at <= now) {
+      // 限流时间已过，清除限流状态，设为空闲
+      await db.clearAccountRateLimit(email);
+      newStatus = 'idle';
+    }
+
+    // 更新状态
+    if (newStatus !== account.account_status) {
+      await db.updateAccount(email, { account_status: newStatus });
+      console.log(`🔄 账户状态更新: ${email} -> ${newStatus}`);
+    }
+  } catch (error) {
+    console.error(`❌ 更新账户状态失败: ${email}`, error);
+  }
+}
+
+// 批量更新所有账户状态
+async function updateAllAccountsStatus(): Promise<void> {
+  try {
+    const accounts = await db.getAllAccounts();
+    const now = new Date();
+
+    for (const account of accounts) {
+      let newStatus: 'idle' | 'available' | 'busy' = account.account_status || 'idle';
+      let needUpdate = false;
+
+      // 检查限流状态
+      if (account.rate_limit_reset_at) {
+        if (account.rate_limit_reset_at > now) {
+          // 仍在限流中，设为繁忙
+          if (newStatus !== 'busy') {
+            newStatus = 'busy';
+            needUpdate = true;
+          }
+        } else {
+          // 限流已过期，清除限流并设为空闲
+          await db.clearAccountRateLimit(account.email);
+          if (newStatus !== 'idle') {
+            newStatus = 'idle';
+            needUpdate = true;
+          }
+        }
+      } else {
+        // 检查可用状态是否超时（5分钟）
+        if (newStatus === 'available' && account.last_used_at) {
+          const timeSinceLastUse = now.getTime() - account.last_used_at.getTime();
+          const fiveMinutes = 5 * 60 * 1000; // 5分钟
+
+          if (timeSinceLastUse > fiveMinutes) {
+            newStatus = 'idle';
+            needUpdate = true;
+          }
+        }
+      }
+
+      // 更新状态
+      if (needUpdate) {
+        await db.updateAccount(account.email, { account_status: newStatus });
+        console.log(`🔄 批量状态更新: ${account.email} -> ${newStatus}`);
+      }
+    }
+  } catch (error) {
+    console.error('❌ 批量更新账户状态失败:', error);
+  }
+}
+
+// 启动定时任务，每30秒检查一次账户状态
+setInterval(updateAllAccountsStatus, 30000);
+
+/**
+ * @swagger
+ * /api/accounts/status:
+ *   get:
+ *     summary: 获取账户状态列表
+ *     description: 获取所有账户的状态信息，包括剩余恢复时间
+ *     tags: [Accounts]
+ *     responses:
+ *       200:
+ *         description: 成功获取账户状态
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       email:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                         enum: [idle, available, busy]
+ *                       recoverySeconds:
+ *                         type: integer
+ *                         nullable: true
+ *                         description: 繁忙状态下的恢复秒数
+ *                       lastUsedAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *       500:
+ *         description: 服务器错误
+ */
+// GET /api/accounts/status: 获取账户状态列表
+app.get('/api/accounts/status', async (req, res) => {
+  try {
+    const accounts = await db.getAllAccounts();
+    const now = new Date();
+
+    const accountsWithStatus = accounts.map(account => {
+      let recoverySeconds: number | null = null;
+
+      // 如果是繁忙状态，计算恢复时间
+      if (account.account_status === 'busy' && account.rate_limit_reset_at) {
+        const resetTime = new Date(account.rate_limit_reset_at);
+        if (resetTime > now) {
+          recoverySeconds = Math.ceil((resetTime.getTime() - now.getTime()) / 1000);
+        }
+      }
+
+      return {
+        id: account.id,
+        email: maskEmail(account.email), // 脱敏处理
+        status: account.account_status || 'idle',
+        recoverySeconds,
+        lastUsedAt: account.last_used_at
+      };
+    });
+
+    res.json({
+      success: true,
+      data: accountsWithStatus
+    });
+
+  } catch (error) {
+    console.error('❌ 获取账户状态失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取账户状态失败'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/accounts/{accountId}/activate:
+ *   post:
+ *     summary: 激活账户（空闲→可用）
+ *     description: 用户点击账户时，将账户状态从空闲改为可用
+ *     tags: [Accounts]
+ *     parameters:
+ *       - in: path
+ *         name: accountId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 账户ID
+ *     responses:
+ *       200:
+ *         description: 激活成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     status:
+ *                       type: string
+ *       400:
+ *         description: 账户不可激活
+ *       404:
+ *         description: 账户不存在
+ *       500:
+ *         description: 服务器错误
+ */
+// POST /api/accounts/:accountId/activate: 激活账户（空闲→可用）
+app.post('/api/accounts/:accountId/activate', async (req, res) => {
+  try {
+    const accountId = parseInt(req.params.accountId);
+
+    if (isNaN(accountId)) {
+      return res.status(400).json({
+        success: false,
+        message: '无效的账户ID'
+      });
+    }
+
+    // 获取账户信息
+    const account = await db.getAccountById(accountId);
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        message: '账户不存在'
+      });
+    }
+
+    // 检查当前状态
+    const now = new Date();
+
+    // 先检查是否在限流中
+    if (account.rate_limit_reset_at && account.rate_limit_reset_at > now) {
+      return res.status(400).json({
+        success: false,
+        message: '账户正在限流中，无法激活',
+        data: {
+          status: 'busy',
+          recoverySeconds: Math.ceil((account.rate_limit_reset_at.getTime() - now.getTime()) / 1000)
+        }
+      });
+    }
+
+    // 只有空闲状态的账户可以被激活
+    if (account.account_status !== 'idle' && account.account_status !== null) {
+      return res.status(400).json({
+        success: false,
+        message: `账户当前状态为 ${account.account_status}，无法激活`
+      });
+    }
+
+    // 激活账户：设为可用状态，更新最后使用时间
+    const updateSuccess = await db.updateAccount(account.email, {
+      account_status: 'available'
+    });
+
+    if (!updateSuccess) {
+      return res.status(500).json({
+        success: false,
+        message: '激活账户失败'
+      });
+    }
+
+    // 更新使用统计
+    await db.updateAccountUsage(account.email);
+
+    console.log(`✅ 账户激活: ${account.email} -> available`);
+
+    res.json({
+      success: true,
+      message: '账户激活成功',
+      data: {
+        status: 'available'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ 激活账户失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '激活账户失败'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/accounts/{accountId}/set-rate-limit:
+ *   post:
+ *     summary: 设置账户限流状态（测试用）
+ *     description: 为指定账户设置限流状态，用于测试繁忙状态
+ *     tags: [Accounts]
+ *     parameters:
+ *       - in: path
+ *         name: accountId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 账户ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               minutes:
+ *                 type: integer
+ *                 description: 限流持续分钟数
+ *                 default: 5
+ *           example:
+ *             minutes: 10
+ *     responses:
+ *       200:
+ *         description: 设置成功
+ *       404:
+ *         description: 账户不存在
+ *       500:
+ *         description: 服务器错误
+ */
+// POST /api/accounts/:accountId/set-rate-limit: 设置账户限流状态（测试用）
+app.post('/api/accounts/:accountId/set-rate-limit', async (req, res) => {
+  try {
+    const accountId = parseInt(req.params.accountId);
+    const { minutes = 5 } = req.body;
+
+    if (isNaN(accountId)) {
+      return res.status(400).json({
+        success: false,
+        message: '无效的账户ID'
+      });
+    }
+
+    // 获取账户信息
+    const account = await db.getAccountById(accountId);
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        message: '账户不存在'
+      });
+    }
+
+    // 设置限流时间
+    const resetAt = new Date(Date.now() + minutes * 60 * 1000);
+    const updateSuccess = await db.updateAccountRateLimit(account.email, resetAt);
+
+    if (!updateSuccess) {
+      return res.status(500).json({
+        success: false,
+        message: '设置限流状态失败'
+      });
+    }
+
+    // 更新账户状态为繁忙
+    await db.updateAccount(account.email, { account_status: 'busy' });
+
+    console.log(`⏰ 设置账户限流: ${account.email} -> ${minutes}分钟`);
+
+    res.json({
+      success: true,
+      message: `账户限流设置成功，将在${minutes}分钟后恢复`,
+      data: {
+        resetAt: resetAt.toISOString(),
+        minutes
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ 设置账户限流失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '设置限流状态失败'
+    });
+  }
+});
+
 /**
  * @swagger
  * /api/accounts/sync:

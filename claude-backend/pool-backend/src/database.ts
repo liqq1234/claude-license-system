@@ -154,14 +154,15 @@ export class DatabaseManager {
   // 添加账户
   async addAccount(account: ClaudeAccount): Promise<number> {
     const [result] = await this.pool.execute(
-      `INSERT INTO claude_accounts (email, session_key, status, created_by, notes) 
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO claude_accounts (email, session_key, status, created_by, notes, organization_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         account.email,
         account.session_key,
         account.status || 1,
         account.created_by || 'admin',
-        account.notes || null
+        account.notes || null,
+        account.organization_id || null
       ]
     );
     return (result as mysql.ResultSetHeader).insertId;
@@ -187,6 +188,10 @@ export class DatabaseManager {
     if (updates.notes !== undefined) {
       fields.push('notes = ?');
       values.push(updates.notes);
+    }
+    if (updates.organization_id !== undefined) {
+      fields.push('organization_id = ?');
+      values.push(updates.organization_id);
     }
 
     if (fields.length === 0) {

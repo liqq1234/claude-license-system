@@ -80,60 +80,89 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:8080',
   'http://localhost:8081',
+  'http://localhost:3457',
   'https://claude.lqqmail.xyz',
-  'https://www.claude.lqqmail.xyz'
+  'https://www.claude.lqqmail.xyz',
+  'https://demo.fuclaude.com'
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
+    console.log(`🔍 [CORS] 检查来源: ${origin || 'null'}`);
+
     // 允许没有origin的请求（如移动应用、Postman等）
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log(`✅ [CORS] 允许无来源请求`);
+      return callback(null, true);
+    }
 
     // 检查是否在允许的域名列表中
     if (allowedOrigins.includes(origin)) {
+      console.log(`✅ [CORS] 允许列表中的域名: ${origin}`);
       callback(null, true);
       return;
     }
 
     // 允许 Chrome 扩展请求
     if (origin && origin.startsWith('chrome-extension://')) {
-      console.log(`✅ 允许 Chrome 扩展请求: ${origin}`);
+      console.log(`✅ [CORS] 允许 Chrome 扩展请求: ${origin}`);
       callback(null, true);
       return;
     }
 
-    // 允许 Edge 扩展请求
+    // 允许 Firefox 扩展请求
     if (origin && origin.startsWith('moz-extension://')) {
-      console.log(`✅ 允许 Firefox 扩展请求: ${origin}`);
+      console.log(`✅ [CORS] 允许 Firefox 扩展请求: ${origin}`);
       callback(null, true);
       return;
     }
 
     // 允许 Edge 扩展请求
     if (origin && origin.startsWith('ms-browser-extension://')) {
-      console.log(`✅ 允许 Edge 扩展请求: ${origin}`);
+      console.log(`✅ [CORS] 允许 Edge 扩展请求: ${origin}`);
       callback(null, true);
       return;
     }
 
-    console.warn(`🚨 CORS blocked request from origin: ${origin}`);
+    // 允许 FuClaude 相关域名
+    if (origin && (origin.includes('fuclaude.com') || origin.includes('claude.lqqmail.xyz'))) {
+      console.log(`✅ [CORS] 允许 FuClaude 域名请求: ${origin}`);
+      callback(null, true);
+      return;
+    }
+
+    console.warn(`🚨 [CORS] 阻止请求来源: ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'User-Agent',
+    'Cache-Control',
+    'Pragma',
     'sentry-trace',        // Sentry 追踪头部
-    'baggage',             // Sentry 相关头部
-    'x-requested-with',    // AJAX 请求头部
-    'accept',              // 接受类型头部
-    'origin',              // 来源头部
-    'user-agent'           // 用户代理头部
+    'baggage'              // Sentry 相关头部
   ],
-  credentials: true // 允许携带cookies
+  exposedHeaders: [
+    'Content-Length',
+    'Content-Type'
+  ],
+  credentials: true,       // 允许携带cookies
+  preflightContinue: false, // 不继续到下一个中间件
+  optionsSuccessStatus: 200 // 某些旧版浏览器 (IE11, 各种SmartTVs) 在 204 上会出错
 }));
 
 app.use(express.json({ limit: '10mb' })); // 限制请求体大小
+
+// 专门处理 OPTIONS 预检请求
+app.options('*', (req, res) => {
+  console.log(`🔍 [OPTIONS] 预检请求: ${req.method} ${req.path} - Origin: ${req.get('origin')}`);
+  res.status(200).end();
+});
 
 // 请求日志中间件 (用于调试)
 app.use((req, res, next) => {
@@ -148,6 +177,29 @@ app.use((req, res, next) => {
     console.log(`   - 完整URL: ${req.originalUrl}`);
     console.log(`   - Content-Type: ${req.get('content-type')}`);
     console.log(`   - 请求体大小: ${JSON.stringify(req.body).length} 字符`);
+  }
+
+  next();
+});
+
+// 手动 CORS 头部中间件 (备用)
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+
+  // 如果是允许的来源，设置 CORS 头部
+  if (origin && (
+    allowedOrigins.includes(origin) ||
+    origin.startsWith('chrome-extension://') ||
+    origin.startsWith('moz-extension://') ||
+    origin.startsWith('ms-browser-extension://') ||
+    origin.includes('fuclaude.com') ||
+    origin.includes('claude.lqqmail.xyz')
+  )) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control, Pragma, sentry-trace, baggage');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
   }
 
   next();
@@ -305,6 +357,341 @@ app.get('/api-docs-json', (req, res) => {
 
 // 注册限流监控API
 app.use('/api/rate-limit', createRateLimitRouter(db));
+
+/**
+ * @swagger
+ * /api/accounts/sync:
+ *   post:
+ *     summary: 同步账号数据
+ *     description: 接收前端扩展发送的账号数据，更新到claude_accounts表
+ *     tags: [Accounts]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: array
+ *             items:
+ *               type: object
+ *               properties:
+ *                 email:
+ *                   type: string
+ *                   nullable: true
+ *                   description: 账号邮箱
+ *                 sessionKey:
+ *                   type: string
+ *                   description: Claude Session Key
+ *                 orgId:
+ *                   type: string
+ *                   nullable: true
+ *                   description: 组织ID
+ *               required:
+ *                 - sessionKey
+ *           example:
+ *             - email: "user@example.com"
+ *               sessionKey: "sk-ant-sid01-xxx..."
+ *               orgId: "0b52f92b-916d-4a39-9163-92544314bd08"
+ *             - email: null
+ *               sessionKey: "sk-ant-sid01-yyy..."
+ *               orgId: "another-org-id"
+ *     responses:
+ *       200:
+ *         description: 同步成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     synced:
+ *                       type: integer
+ *                       description: 同步的账号数量
+ *                     updated:
+ *                       type: integer
+ *                       description: 更新的账号数量
+ *                     created:
+ *                       type: integer
+ *                       description: 新创建的账号数量
+ *                     skipped:
+ *                       type: integer
+ *                       description: 跳过的账号数量
+ *             example:
+ *               success: true
+ *               message: "账号数据同步成功"
+ *               data:
+ *                 synced: 5
+ *                 updated: 3
+ *                 created: 2
+ *                 skipped: 0
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+// POST /api/accounts/sync: 同步账号数据
+app.post('/api/accounts/sync', createRateLimit(60000, 10, '账号同步请求过于频繁，请稍后再试'), async (req, res) => {
+  try {
+    const accounts = req.body;
+
+    console.log(`🔄 收到账号同步请求: ${Array.isArray(accounts) ? accounts.length : 0} 个账号`);
+
+    // 验证请求数据
+    if (!Array.isArray(accounts)) {
+      return res.status(400).json({
+        success: false,
+        message: '请求数据必须是数组格式'
+      });
+    }
+
+    if (accounts.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '账号数据不能为空'
+      });
+    }
+
+    if (accounts.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: '单次同步账号数量不能超过100个'
+      });
+    }
+
+    // 验证每个账号数据
+    for (let i = 0; i < accounts.length; i++) {
+      const account = accounts[i];
+
+      if (!account || typeof account !== 'object') {
+        return res.status(400).json({
+          success: false,
+          message: `第${i + 1}个账号数据格式错误`
+        });
+      }
+
+      if (!account.sessionKey || typeof account.sessionKey !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: `第${i + 1}个账号缺少有效的sessionKey`
+        });
+      }
+
+      if (!account.sessionKey.startsWith('sk-ant-')) {
+        return res.status(400).json({
+          success: false,
+          message: `第${i + 1}个账号的sessionKey格式无效，必须以sk-ant-开头`
+        });
+      }
+
+      // 验证邮箱格式（如果提供）
+      if (account.email && typeof account.email === 'string') {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(account.email)) {
+          return res.status(400).json({
+            success: false,
+            message: `第${i + 1}个账号的邮箱格式无效: ${account.email}`
+          });
+        }
+      }
+    }
+
+    // 统计变量
+    let synced = 0;
+    let updated = 0;
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    // 处理每个账号
+    for (const accountData of accounts) {
+      try {
+        const { email, sessionKey, orgId } = accountData;
+
+        // 生成默认邮箱（如果没有提供）
+        const finalEmail = email || `claude_${sessionKey.slice(-8)}@generated.local`;
+
+        // 检查账号是否已存在（通过session_key查找）
+        const existingAccounts = await db.getAllAccounts();
+        const existingAccount = existingAccounts.find(acc => acc.session_key === sessionKey);
+
+        if (existingAccount) {
+          // 更新现有账号
+          const updates: any = {};
+          let needUpdate = false;
+
+          // 如果提供了邮箱且与现有不同，更新邮箱
+          if (email && existingAccount.email !== email) {
+            updates.email = email;
+            needUpdate = true;
+          }
+
+          // 如果提供了组织ID且与现有不同，更新组织ID
+          if (orgId && existingAccount.organization_id !== orgId) {
+            updates.organization_id = orgId;
+            needUpdate = true;
+          }
+
+          if (needUpdate) {
+            const updateSuccess = await db.updateAccount(existingAccount.email, updates);
+            if (updateSuccess) {
+              console.log(`✅ 更新账号: ${existingAccount.email} -> ${email || existingAccount.email}`);
+              updated++;
+            } else {
+              console.warn(`⚠️ 更新账号失败: ${existingAccount.email}`);
+              errors.push(`更新账号失败: ${existingAccount.email}`);
+            }
+          } else {
+            console.log(`ℹ️ 账号无需更新: ${existingAccount.email}`);
+            skipped++;
+          }
+        } else {
+          // 检查邮箱是否已被其他账号使用（但sessionKey不同）
+          if (email) {
+            const emailExists = await db.getAccountByEmail(email);
+            if (emailExists) {
+              // 邮箱存在但sessionKey不同，说明需要更新sessionKey和orgId
+              console.log(`🔄 邮箱已存在，更新sessionKey和orgId: ${email}`);
+
+              const updates: any = {};
+              let needUpdate = false;
+
+              // 更新sessionKey（这是最重要的，因为可能过期了）
+              if (emailExists.session_key !== sessionKey) {
+                updates.session_key = sessionKey;
+                needUpdate = true;
+                console.log(`🔑 更新sessionKey: ${email}`);
+              }
+
+              // 更新组织ID
+              if (orgId && emailExists.organization_id !== orgId) {
+                updates.organization_id = orgId;
+                needUpdate = true;
+                console.log(`🏢 更新orgId: ${email} -> ${orgId}`);
+              }
+
+              if (needUpdate) {
+                const updateSuccess = await db.updateAccount(email, updates);
+                if (updateSuccess) {
+                  console.log(`✅ 更新现有邮箱账号: ${email}`);
+                  updated++;
+                } else {
+                  console.warn(`⚠️ 更新现有邮箱账号失败: ${email}`);
+                  errors.push(`更新现有邮箱账号失败: ${email}`);
+                }
+              } else {
+                console.log(`ℹ️ 现有邮箱账号无需更新: ${email}`);
+                skipped++;
+              }
+
+              synced++;
+              continue;
+            }
+          }
+
+          // 创建新账号
+          const newAccount: ClaudeAccount = {
+            email: finalEmail,
+            session_key: sessionKey,
+            organization_id: orgId || undefined,
+            status: 1,
+            created_by: 'extension_sync'
+          };
+
+          const accountId = await db.addAccount(newAccount);
+          if (accountId) {
+            console.log(`✅ 创建新账号: ${finalEmail} (ID: ${accountId})`);
+            created++;
+          } else {
+            console.error(`❌ 创建账号失败: ${finalEmail}`);
+            errors.push(`创建账号失败: ${finalEmail}`);
+          }
+        }
+
+        synced++;
+
+      } catch (accountError) {
+        console.error(`❌ 处理账号数据失败:`, accountError);
+        errors.push(`处理账号失败: ${accountError instanceof Error ? accountError.message : '未知错误'}`);
+      }
+    }
+
+    // 记录管理员操作日志
+    try {
+      await db.logAdminAction({
+        action: 'batch',
+        target_email: `sync_${accounts.length}_accounts`,
+        new_data: {
+          total: accounts.length,
+          synced,
+          updated,
+          created,
+          skipped,
+          errors: errors.length
+        },
+        admin_ip: getClientIP(req),
+        user_agent: getUserAgent(req),
+        success: errors.length === 0,
+        error_message: errors.length > 0 ? errors.join('; ') : undefined,
+        batch_id: `sync_${Date.now()}`
+      });
+    } catch (logError) {
+      console.error('记录同步日志失败:', logError);
+    }
+
+    console.log(`📊 账号同步完成: 总计${synced}, 更新${updated}, 创建${created}, 跳过${skipped}, 错误${errors.length}`);
+
+    // 返回结果
+    const response = {
+      success: errors.length === 0,
+      message: errors.length === 0 ? '账号数据同步成功' : `同步完成，但有${errors.length}个错误`,
+      data: {
+        synced,
+        updated,
+        created,
+        skipped,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    };
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('💥 账号同步失败:', error);
+
+    // 记录错误日志
+    try {
+      await db.logAdminAction({
+        action: 'batch',
+        target_email: 'sync_accounts_error',
+        admin_ip: getClientIP(req),
+        user_agent: getUserAgent(req),
+        success: false,
+        error_message: error instanceof Error ? error.message : '未知错误',
+        batch_id: `sync_error_${Date.now()}`
+      });
+    } catch (logError) {
+      console.error('记录错误日志失败:', logError);
+    }
+
+    res.status(500).json({
+      success: false,
+      message: '账号同步失败: ' + (error instanceof Error ? error.message : '未知错误')
+    });
+  }
+});
 
 /**
  * @swagger

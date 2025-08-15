@@ -26,7 +26,7 @@
         <div class="card-content">
             <!-- 顶部信息 -->
             <div class="card-header">
-                <div class="account-name-new">{{ displayName }}</div>
+                <div class="account-name-new">{{ emailPrefix }}</div>
             </div>
 
             <!-- 底部状态 -->
@@ -34,10 +34,9 @@
                 <div class="status-indicator">
                     <div class="status-dot" :class="statusDotClass"></div>
                     <div class="status-info">
-                        <span class="status-text">{{ statusText }}</span>
+                        <span v-if="!showCountdown" class="status-text">{{ statusText }}</span>
                         <div v-if="showCountdown" class="countdown-text">{{ countdownDisplay }}</div>
                     </div>
-                    <span class="email-text">{{ maskedEmail }}</span>
                 </div>
             </div>
         </div>
@@ -86,6 +85,23 @@ const statusDotClass = computed(() => {
     return `status-dot-${color}`;
 });
 
+// 提取邮箱前缀（去掉@gmail.com）
+const emailPrefix = computed(() => {
+    const email = props.account.email;
+    if (!email) return "";
+
+    const [localPart] = email.split("@");
+    if (!localPart) return email;
+
+    // 如果本地部分长度小于等于3，只显示第一个字符
+    if (localPart.length <= 3) {
+        return `${localPart[0]}***`;
+    }
+
+    // 显示前2个字符和后1个字符，中间用***代替
+    return `${localPart.slice(0, 2)}***${localPart.slice(-1)}`;
+});
+
 const maskedEmail = computed(() => {
     const email = props.account.email;
     if (!email) return "";
@@ -105,15 +121,12 @@ const maskedEmail = computed(() => {
 
 // 是否显示倒计时
 const showCountdown = computed(() => {
-    return (
-        props.status.status === "busy" &&
-        (localCountdown.value > 0 || props.status.remaining_seconds > 0)
-    );
+    return props.status.status === "busy" && props.status.remaining_seconds > 0;
 });
 
 // 倒计时显示
 const countdownDisplay = computed(() => {
-    const seconds = localCountdown.value || props.status.remaining_seconds || 0;
+    const seconds = props.status.remaining_seconds || 0;
     return formatTime(seconds);
 });
 
@@ -121,17 +134,8 @@ const countdownDisplay = computed(() => {
 const formatTime = (seconds) => {
     if (!seconds || seconds <= 0) return "";
 
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
-            .toString()
-            .padStart(2, "0")}`;
-    } else {
-        return `${minutes}:${secs.toString().padStart(2, "0")}`;
-    }
+    // 显示为秒数格式：如 "40秒恢复"
+    return `${seconds}秒恢复`;
 };
 
 // 启动倒计时
@@ -142,14 +146,9 @@ const startCountdown = (seconds) => {
 
     localCountdown.value = seconds;
     countdownTimer.value = setInterval(() => {
-        localCountdown.value--;
-        if (localCountdown.value <= 0) {
-            clearInterval(countdownTimer.value);
-            countdownTimer.value = null;
-            // 通知父组件状态可能已变化
-            emit("status-update", props.account.email);
-        }
-    }, 1000);
+        // 每3分钟刷新一次状态
+        emit("status-update", props.account.email);
+    }, 180000); // 3分钟 = 180秒 = 180000毫秒
 };
 
 // 停止倒计时
@@ -201,7 +200,7 @@ const handleActivate = async () => {
     }
 };
 
-// 监听状态变化，启动倒计时
+// 监听状态变化，启动3分钟刷新定时器
 const watchStatus = () => {
     if (props.status.status === "busy" && props.status.remaining_seconds > 0) {
         startCountdown(props.status.remaining_seconds);
@@ -314,7 +313,7 @@ watch(() => props.status, watchStatus, { deep: true });
 /* 卡片头部 */
 .card-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: flex-start;
 }
 
@@ -393,9 +392,8 @@ watch(() => props.status, watchStatus, { deep: true });
 
 /* 倒计时文字 */
 .countdown-text {
-    font-size: 11px;
-    color: #dc2626;
-    font-weight: 600;
-    font-family: monospace;
+    font-size: 14px;
+    color: #a16207;
+    font-weight: 500;
 }
 </style>

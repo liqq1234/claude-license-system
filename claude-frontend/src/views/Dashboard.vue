@@ -699,7 +699,7 @@ const handleRandomLogin = async () => {
 
         // 2. 调用pool-backend的随机登录接口
         const poolApiUrl =
-            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:3457";
+            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:8787";
         const token = localStorage.getItem("token");
 
         const loginResponse = await fetch(`${poolApiUrl}/api/login`, {
@@ -880,7 +880,7 @@ const handleAccountClick = async (account) => {
         // 2. 调用pool-backend的用户登录接口，指定账号登录
         console.log("🔄 开始调用pool-backend登录接口...");
         const poolApiUrl =
-            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:3457";
+            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:8787";
         const token = localStorage.getItem("token");
 
         console.log("🌐 Pool API URL:", poolApiUrl);

@@ -13,7 +13,7 @@ export const API_ENDPOINTS = {
   
   // Claude Pool后端（pool-backend）
   CLAUDE_POOL: {
-    baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:3456',
+    baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:8787',
     timeout: 15000,
     description: 'Claude账号池管理和登录服务'
   }

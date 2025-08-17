@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { authApi, activationApi } from '@/api/auth'
+import logger from '@/utils/logger'
 
 export const useAuthStore = defineStore('auth', () => {
   // 状态
@@ -108,7 +109,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await authApi.logout()
     } catch (error) {
-      console.error('Logout error:', error)
+      logger.error('Logout error:', error)
     } finally {
       // 清除状态
       token.value = null
@@ -138,7 +139,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
       return false
     } catch (error) {
-      console.error('Verify token error:', error)
+      logger.error('Verify token error:', error)
       logout()
       return false
     }
@@ -209,7 +210,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
       return null
     } catch (error) {
-      console.error('Fetch membership status error:', error)
+      logger.error('Fetch membership status error:', error)
       return null
     }
   }
@@ -239,7 +240,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
       return null
     } catch (error) {
-      console.error('Fetch complete user info error:', error)
+      logger.error('Fetch complete user info error:', error)
       return null
     }
   }
@@ -254,7 +255,7 @@ export const useAuthStore = defineStore('auth', () => {
         return { valid: false, message: response.message }
       }
     } catch (error) {
-      console.error('Validate membership error:', error)
+      logger.error('Validate membership error:', error)
       return { valid: false, message: error.message }
     }
   }
@@ -275,7 +276,7 @@ export const useAuthStore = defineStore('auth', () => {
           await logout(false)
         }
       } catch (error) {
-        console.error('Parse saved user error:', error)
+        logger.error('Parse saved user error:', error)
         await logout(false)
       }
     }

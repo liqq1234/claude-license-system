@@ -267,7 +267,7 @@ const fetchAccountsStatusFromBackend = async () => {
             syncErrors.value = syncErrors.value.slice(-10);
         }
 
-        ElMessage.error(`获取账户状态失败: ${error.message}`);
+        // 静默处理错误，不显示消息给用户
         return false;
     }
 };
@@ -379,7 +379,7 @@ const recordAccountUsageToBackend = async (email) => {
         };
         syncErrors.value.push(errorInfo);
 
-        ElMessage.warning(`记录 ${email} 使用失败: ${error.message}`);
+        // 静默处理记录失败，不显示消息给用户
         return false;
     }
 };

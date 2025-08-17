@@ -1766,7 +1766,9 @@ app.post('/api/login', verifyToken, async (req: any, res) => {
       account_name: `Claude #${selectedAccount.id}`, // 账号昵称
       unique_name: uniqueName,
       expires_in: expiresIn > 0 ? expiresIn : null,
-      warning: expiresIn > config.TOKEN_EXPIRES_IN ? 'Token有效期已调整为最大允许值' : undefined
+      warning: expiresIn > config.TOKEN_EXPIRES_IN && config.TOKEN_EXPIRES_IN > 0 ?
+        `会话有效期已设置为 ${Math.floor(expiresIn / 3600)} 小时，超过系统默认的 ${Math.floor(config.TOKEN_EXPIRES_IN / 3600)} 小时` :
+        undefined
     });
 
   } catch (error) {

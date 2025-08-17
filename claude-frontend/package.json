@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --mode development",
+    "build": "vite build --mode production",
+    "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "start:all": "powershell -ExecutionPolicy Bypass -File start-all.ps1",
     "health-check": "node -e \"import('./src/config/api.js').then(api => api.healthCheck())\"",

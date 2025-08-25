@@ -14,6 +14,10 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
+# 注意：.env.development 和 .env.production 会被提交
+# 它们只包含模板和非敏感配置
+# 实际使用时应复制为 .env 并修改敏感信息
+
 # 构建输出
 dist/
 build/

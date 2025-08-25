@@ -8,9 +8,9 @@ module.exports = {
 
   // Redis 配置
   redis: {
-    host: 'localhost',
-    port: 6379,
-    password: '123456',
+    host: process.env.REDIS_HOST || 'localhost',
+    port: process.env.REDIS_PORT || 6379,
+    password: process.env.REDIS_PASSWORD || '123456',
     db: 0
   },
 

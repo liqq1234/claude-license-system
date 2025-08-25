@@ -4,7 +4,7 @@
   "description": "激活码监控系统",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' vite build",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -49,7 +49,9 @@ export const corsConfig = {
     'http://localhost:8083', // 添加8083端口支持
     'http://localhost:5173', // 添加Vite默认端口
     'https://claude.lqqmail.xyz',
-    'https://www.claude.lqqmail.xyz'
+    'https://www.claude.lqqmail.xyz',
+    'https://admin.lqqmail.xyz',  // 添加管理后台域名
+    'https://ai.lqqmail.xyz'      // 添加AI服务域名
   ]
 };
 

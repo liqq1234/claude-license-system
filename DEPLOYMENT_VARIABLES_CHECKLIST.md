@@ -11,7 +11,7 @@
 ### 1. JWT密钥配置
 ```env
 # 🚨 必须修改：JWT签名密钥（两个后端服务必须使用相同值）
-JWT_SECRET=your_production_jwt_secret_very_long_and_secure
+JWT_SECRET=07c1df0408b2a74402220d3519ac86c18e1d64d2bf889e5ca14495967726f5d2
 ```
 **用途**：用于JWT token的签名和验证  
 **默认值**：`dev-jwt-secret-key`  
@@ -21,7 +21,7 @@ JWT_SECRET=your_production_jwt_secret_very_long_and_secure
 ### 2. 激活码密钥
 ```env
 # 🚨 必须修改：激活码签名密钥
-LICENSE_SECRET=your_production_license_secret_here
+LICENSE_SECRET=1f28731b97bec3daa7f4ca06343a9454
 ```
 **用途**：激活码生成和验证的签名密钥  
 **默认值**：`dev-license-secret`  
@@ -30,7 +30,7 @@ LICENSE_SECRET=your_production_license_secret_here
 ### 3. Token加密密钥
 ```env
 # 🚨 必须修改：Token加密密钥
-TOKEN_ENCRYPTION_KEY=your_production_token_encryption_key_here
+TOKEN_ENCRYPTION_KEY=e6d053b83e59a4381bcc7a6d840
 ```
 **用途**：Token池服务中token的加密存储  
 **默认值**：`dev-token-encryption-key`  
@@ -123,9 +123,9 @@ nano .env
 DB_PASSWORD=你的宝塔MySQL密码
 
 # 安全密钥（全部修改为随机强密钥）
-JWT_SECRET=生成的64位随机字符串
-LICENSE_SECRET=生成的32位随机字符串  
-TOKEN_ENCRYPTION_KEY=生成的32位随机字符串
+JWT_SECRET=07c1df0408b2a74402220d3519ac86c18e1d64d2bf889e5ca14495967726f5d2
+LICENSE_SECRET=1f28731b97bec3daa7f4ca06343a9454
+TOKEN_ENCRYPTION_KEY=e6d053b83e59a4381bcc7a6d840ec6fd
 REDIS_PASSWORD=你的Redis强密码
 
 # 邮件服务（使用你的邮箱）

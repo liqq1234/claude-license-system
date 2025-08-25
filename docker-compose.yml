@@ -83,7 +83,7 @@ services:
       - VITE_APP_NAME=Claude License System
       - VITE_APP_VERSION=1.0.0
     ports:
-      - "8080:80"
+      - "8081:80"
     restart: unless-stopped
 
   # Manager 服务
@@ -98,7 +98,7 @@ services:
       - VITE_APP_NAME=Claude Manager
       - VITE_APP_VERSION=1.0.0
     ports:
-      - "8081:80"
+      - "8082:80"
     restart: unless-stopped
 
 volumes:

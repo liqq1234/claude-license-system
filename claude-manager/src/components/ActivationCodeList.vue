@@ -323,7 +323,7 @@ const loadCodes = async () => {
         };
 
         const response = await activationApi.getCodes(params);
-        
+
         // 后端实际返回结构: {status: 0, codes: [...], total: 17, page: 1, limit: 20}
         if (response && response.status === 0) {
             codes.value = response.codes || [];

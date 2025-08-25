@@ -33,7 +33,11 @@ app.use(cors({
     'http://127.0.0.1:8081',
     'http://127.0.0.1:8082', // 添加8082端口支持
     'http://127.0.0.1:8083', // 添加8083端口支持
-    'http://127.0.0.1:5173'
+    'http://127.0.0.1:5173',
+    // 生产环境域名
+    'https://ai.lqqmail.xyz',
+    'https://admin.lqqmail.xyz',
+    'https://claude.lqqmail.xyz'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

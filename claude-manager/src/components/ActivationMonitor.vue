@@ -147,7 +147,7 @@ import { ref, computed, onMounted, nextTick } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Loading, Search, Refresh } from "@element-plus/icons-vue";
 import * as echarts from "echarts";
-import { activationApi } from "../../../activation-backend/src/api/activation";
+import { activationApi } from "../api/activation";
 import GenerateDialog from "./GenerateDialog.vue";
 import TestDialog from "./TestDialog.vue";
 

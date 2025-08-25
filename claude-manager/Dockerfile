@@ -5,10 +5,10 @@ FROM node:18-alpine as builder
 WORKDIR /app
 
 # 复制 package.json
-COPY package*.json ./
+COPY package.json ./
 
-# 安装依赖
-RUN npm ci
+# 安装依赖，忽略可选依赖
+RUN npm install --no-optional --ignore-scripts
 
 # 复制源代码
 COPY . .

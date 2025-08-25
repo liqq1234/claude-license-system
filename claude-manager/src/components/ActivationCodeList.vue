@@ -314,6 +314,12 @@ const selectedCode = ref(null);
 // 方法
 const loadCodes = async () => {
     loading.value = true;
+    
+    // 调试信息
+    console.log('=== API调试信息 ===');
+    console.log('VITE_ACTIVATION_API_URL:', import.meta.env.VITE_ACTIVATION_API_URL);
+    console.log('当前baseURL应该是:', import.meta.env.VITE_ACTIVATION_API_URL);
+    
     try {
         const params = {
             page: currentPage.value,
@@ -322,6 +328,7 @@ const loadCodes = async () => {
             search: searchText.value || undefined,
         };
 
+        console.log('请求参数:', params);
         const response = await activationApi.getCodes(params);
 
         // 后端实际返回结构: {status: 0, codes: [...], total: 17, page: 1, limit: 20}

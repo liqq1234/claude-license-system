@@ -8,6 +8,11 @@ const activationApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// 调试信息
+console.log('=== Activation API Client 初始化 ===');
+console.log('VITE_ACTIVATION_API_URL:', import.meta.env.VITE_ACTIVATION_API_URL);
+console.log('baseURL设置为:', activationApi.defaults.baseURL);
+
 
 
 activationApi.interceptors.response.use(

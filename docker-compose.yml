@@ -17,7 +17,7 @@ services:
       dockerfile: Dockerfile
     container_name: claude-activation-backend
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_NAME=license_server
@@ -37,11 +37,16 @@ services:
       - SMTP_PASS=${SMTP_PASS}
       - POOL_BACKEND_URL=http://pool-backend:8787
       - CLAUDE_PROXY_DOMAIN=${CLAUDE_PROXY_DOMAIN}
+    volumes:
+      # 挂载源代码目录实现热重载
+      - ./claude-backend/activation-backend:/app
+      - /app/node_modules  # 避免覆盖容器内的node_modules
     ports:
       - "8888:8888"
     depends_on:
       - redis
     restart: unless-stopped
+    command: npm run dev
 
   # Pool Backend 服务
   pool-backend:
@@ -50,7 +55,7 @@ services:
       dockerfile: Dockerfile
     container_name: claude-pool-backend
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_NAME=claudehub
@@ -65,9 +70,14 @@ services:
       - DB_CONNECTION_LIMIT=${DB_CONNECTION_LIMIT}
       - DB_ACQUIRE_TIMEOUT=${DB_ACQUIRE_TIMEOUT}
       - DB_TIMEOUT=${DB_TIMEOUT}
+    volumes:
+      # 挂载源代码目录实现热重载
+      - ./claude-backend/pool-backend:/app
+      - /app/node_modules  # 避免覆盖容器内的node_modules
     ports:
       - "8787:8787"
     restart: unless-stopped
+    command: npm run dev
 
   # Frontend 服务
   claude-frontend:
@@ -80,9 +90,14 @@ services:
       - VITE_CLAUDE_POOL_API_URL=${FRONTEND_POOL_API_URL}
       - VITE_APP_NAME=Claude License System
       - VITE_APP_VERSION=1.0.0
+    volumes:
+      # 挂载源代码目录实现热重载
+      - ./claude-frontend:/app
+      - /app/node_modules  # 避免覆盖容器内的node_modules
     ports:
-      - "8081:80"
+      - "8081:8080"  # Vite开发服务器端口
     restart: unless-stopped
+    command: npm run dev -- --host 0.0.0.0
 
   # Manager 服务
   claude-manager:
@@ -95,9 +110,14 @@ services:
       - VITE_CLAUDE_POOL_API_URL=${MANAGER_POOL_API_URL}
       - VITE_APP_NAME=Claude Manager
       - VITE_APP_VERSION=1.0.0
+    volumes:
+      # 挂载源代码目录实现热重载
+      - ./claude-manager:/app
+      - /app/node_modules  # 避免覆盖容器内的node_modules
     ports:
-      - "8082:80"
+      - "8082:8080"  # Vite开发服务器端口
     restart: unless-stopped
+    command: npm run dev -- --host 0.0.0.0
 
 volumes:
   redis_data:

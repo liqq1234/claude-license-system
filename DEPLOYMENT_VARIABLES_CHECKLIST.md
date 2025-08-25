@@ -36,18 +36,6 @@ TOKEN_ENCRYPTION_KEY=your_production_token_encryption_key_here
 **默认值**：`dev-token-encryption-key`  
 **修改建议**：使用32位字符串
 
-### 4. 管理员密钥
-```env
-# 🚨 必须修改：管理员API密钥
-ADMIN_KEY=your_production_admin_key_here
-
-# 🚨 必须修改：管理员界面密码
-ADMIN_PASSWORD=your_production_admin_password
-```
-**用途**：管理员API访问和管理界面登录  
-**默认值**：`admin123`  
-**修改建议**：使用强密码，包含大小写字母、数字、特殊字符
-
 ---
 
 ## 🗄️ 数据库配置（必须修改）
@@ -138,8 +126,6 @@ DB_PASSWORD=你的宝塔MySQL密码
 JWT_SECRET=生成的64位随机字符串
 LICENSE_SECRET=生成的32位随机字符串  
 TOKEN_ENCRYPTION_KEY=生成的32位随机字符串
-ADMIN_KEY=你的管理员密钥
-ADMIN_PASSWORD=你的管理员强密码
 REDIS_PASSWORD=你的Redis强密码
 
 # 邮件服务（使用你的邮箱）

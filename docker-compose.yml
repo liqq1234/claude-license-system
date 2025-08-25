@@ -23,8 +23,8 @@ services:
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_NAME=license_server
-      - DB_USER=${DB_USER}
-      - DB_PASS=${DB_PASSWORD}
+      - DB_USER=${LICENSE_DB_USER}
+      - DB_PASS=${LICENSE_DB_PASSWORD}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -33,7 +33,6 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - LICENSE_SECRET=${LICENSE_SECRET}
       - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
-      - ADMIN_KEY=${ADMIN_KEY}
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USER=${SMTP_USER}
@@ -57,11 +56,10 @@ services:
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_NAME=claudehub
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_USER=${POOL_DB_USER}
+      - DB_PASSWORD=${POOL_DB_PASSWORD}
       - PORT=8787
       - BASE_URL=${CLAUDE_BASE_URL}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - LICENSE_SERVER_URL=http://activation-backend:8888
       - CLAUDE_BASE_URL=${CLAUDE_BASE_URL}

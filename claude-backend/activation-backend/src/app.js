@@ -5,7 +5,6 @@ const cors = require('cors');
 const logger = require('./utils/logger');
 const { router: apiRouter } = require('./controllers/api');
 const authRouter = require('./controllers/auth');
-const adminRouter = require('./controllers/admin');
 const emailActivationRouter = require('./controllers/emailActivation');
 // 新的API路由
 const activationApiRouter = require('./routes/activation');
@@ -61,7 +60,6 @@ app.get('/api-docs-json', (req, res) => {
 
 app.use('/v1', apiRouter);
 app.use('/auth', authRouter);
-app.use('/admin', adminRouter);
 app.use('/activation', emailActivationRouter);
 
 // 新的API路由

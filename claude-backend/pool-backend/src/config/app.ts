@@ -11,7 +11,6 @@ dotenv.config();
 // 环境变量接口
 export interface Config {
   PORT: number;
-  ADMIN_PASSWORD: string;
   BASE_URL: string;
   TOKEN_EXPIRES_IN: number;
   DB_HOST: string;
@@ -27,11 +26,6 @@ export interface Config {
 // 加载配置
 export const config: Config = {
   PORT: parseInt(process.env.PORT || '8787'),
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || (() => {
-    console.error('🚨 SECURITY WARNING: ADMIN_PASSWORD not set in environment variables!');
-    console.error('🚨 Using default password is EXTREMELY DANGEROUS in production!');
-    return 'CHANGE_ME_IMMEDIATELY_' + Math.random().toString(36);
-  })(),
   BASE_URL: process.env.BASE_URL || 'https://claude.lqqmail.xyz',
   TOKEN_EXPIRES_IN: parseInt(process.env.TOKEN_EXPIRES_IN || '0'),
   DB_HOST: process.env.DB_HOST || 'localhost',

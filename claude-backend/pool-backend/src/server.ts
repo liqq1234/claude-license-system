@@ -37,7 +37,6 @@ if (typeof fetch === 'undefined') {
 // 环境变量接口
 interface Config {
   PORT: number;
-  ADMIN_PASSWORD: string;
   BASE_URL: string;
   TOKEN_EXPIRES_IN: number;
   DB_HOST: string;
@@ -53,11 +52,6 @@ interface Config {
 // 加载配置
 const config: Config = {
   PORT: parseInt(process.env.PORT || '8787'),
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || (() => {
-    console.error('🚨 SECURITY WARNING: ADMIN_PASSWORD not set in environment variables!');
-    console.error('🚨 Using default password is EXTREMELY DANGEROUS in production!');
-    return 'CHANGE_ME_IMMEDIATELY_' + Math.random().toString(36);
-  })(),
   BASE_URL: process.env.BASE_URL || 'https://claude.lqqmail.xyz',
   TOKEN_EXPIRES_IN: parseInt(process.env.TOKEN_EXPIRES_IN || '0'),
   DB_HOST: process.env.DB_HOST || 'localhost',
@@ -2775,7 +2769,6 @@ async function startServer() {
       console.log(`🚀 Claude Pool Manager 服务启动成功`);
       console.log(`📡 服务地址: http://localhost:${config.PORT}`);
       console.log(`🗄️  数据库: ${config.DB_HOST}:${config.DB_PORT}/${config.DB_NAME}`);
-      console.log(`🔐 管理员密码: ${config.ADMIN_PASSWORD}`);
     });
     
   } catch (error) {

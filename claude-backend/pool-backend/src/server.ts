@@ -80,7 +80,11 @@ const allowedOrigins = [
   'http://localhost:3457',
   'https://claude.lqqmail.xyz',
   'https://www.claude.lqqmail.xyz',
-  'https://demo.fuclaude.com'
+  'https://demo.fuclaude.com',
+  'https://www.claude.lqqmail.xyz',
+  'https://admin.lqqmail.xyz',  // 添加管理后台域名
+  'https://ai.lqqmail.xyz' 
+  
 ];
 
 app.use(cors({

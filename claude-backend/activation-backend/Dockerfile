@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package.json package.json
 COPY npm-shrinkwrap.json npm-shrinkwrap.json
 # 安装所有依赖（包括开发依赖）以支持热重载
-RUN npm install
+RUN npm install --include=dev
 
 # 复制应用文件
 COPY src src

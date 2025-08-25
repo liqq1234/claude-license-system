@@ -84,7 +84,7 @@ services:
     build:
       context: ./claude-frontend
       dockerfile: Dockerfile
-    container_name: claude-frontend
+    container_name: claude-frontend-dev
     environment:
       - VITE_ACTIVATION_API_URL=${FRONTEND_ACTIVATION_API_URL}
       - VITE_CLAUDE_POOL_API_URL=${FRONTEND_POOL_API_URL}
@@ -104,7 +104,7 @@ services:
     build:
       context: ./claude-manager
       dockerfile: Dockerfile
-    container_name: claude-manager
+    container_name: claude-manager-dev
     environment:
       - VITE_ACTIVATION_API_URL=${MANAGER_ACTIVATION_API_URL}
       - VITE_CLAUDE_POOL_API_URL=${MANAGER_POOL_API_URL}

@@ -158,6 +158,12 @@ const resetForm = () => {
     });
     formRef.value?.clearValidate();
 };
+
+// 修复缺失的 handleClose 函数
+const handleClose = () => {
+    resetForm();
+    emit("close");
+};
 </script>
 
 <style scoped>

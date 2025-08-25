@@ -11,7 +11,13 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 8080,
-    open: true
+    host: '0.0.0.0',  // 允许外部访问
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'ai.lqqmail.xyz',
+      'admin.lqqmail.xyz'
+    ]
   },
   define: {
     // 在生产环境中禁用 console

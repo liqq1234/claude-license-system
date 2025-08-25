@@ -14,7 +14,7 @@
     "api:dev": "swagger-typescript-api generate -p http://localhost:8888/api-docs-json -o ./src/api -n api.ts --axios --clean-output --extract-request-params",
     "api:clean": "rimraf src/api && npm run generate-api",
     "migrate": "node scripts/migrate-database.js",
-    "dev": "nodemon index.js",
+    "dev": "node --watch index.js",
     "cleanup": "node -e \"require('./src/services/cleanupService').runFullCleanup().then(() => process.exit(0))\""
   },
   "repository": {

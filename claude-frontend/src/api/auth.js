@@ -1,59 +1,5 @@
-import axios from 'axios'
+import { activationApi as api } from './apiClient'
 
-// 创建axios实例 - 连接到后端 License Server
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8888',
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
-// 请求拦截器
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
-
-// 响应拦截器
-api.interceptors.response.use(
-  (response) => {
-    // 后端返回的数据结构: { status: 0, message: "成功", data: {...} }
-    return response.data
-  },
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token过期，清除本地存储
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-
-      // 使用路由跳转而不是直接修改location
-      import('@/router').then(({ default: router }) => {
-        router.push('/login')
-      })
-
-      // 显示提示消息
-      import('element-plus').then(({ ElMessage }) => {
-        ElMessage.warning('登录已过期，请重新登录')
-      })
-    }
-
-    // 处理后端错误响应
-    const errorData = error.response?.data
-    const message = errorData?.message || error.message || '请求失败'
-    return Promise.reject(new Error(message))
-  }
-)
-
-// 认证相关API
 export const authApi = {
   // 用户注册
   register: async (userData) => {
@@ -110,8 +56,7 @@ export const authApi = {
   }
 }
 
-// 激活码相关API
-export const activationApi = {
+export const activationApiService = {
   // 激活码绑定
   bindActivationCode: async (activationCode) => {
     const response = await api.post('/activation/bind', { activationCode })
@@ -136,5 +81,3 @@ export const activationApi = {
     return response
   }
 }
-
-export default api

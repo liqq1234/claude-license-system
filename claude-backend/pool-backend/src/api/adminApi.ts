@@ -5,7 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import { DatabaseManager } from '../database';
-import { requireAdminPassword } from '../middleware/auth';
+
 import { getClientIP, getUserAgent } from '../utils/request';
 import { maskEmail } from '../utils/helpers';
 
@@ -25,7 +25,7 @@ export function createAdminRouter(db: DatabaseManager) {
    *       200:
    *         description: 成功获取账户列表
    */
-  router.post('/list', requireAdminPassword, async (req: Request, res: Response) => {
+    router.post('/list', async (req: Request, res: Response) => {
     try {
       const accounts = await db.getAllAccounts();
       
@@ -59,7 +59,7 @@ export function createAdminRouter(db: DatabaseManager) {
    *     security:
    *       - adminPassword: []
    */
-  router.post('/add', requireAdminPassword, async (req: Request, res: Response) => {
+    router.post('/add', async (req: Request, res: Response) => {
     try {
       const { email, session_key, notes } = req.body;
 
@@ -123,7 +123,7 @@ export function createAdminRouter(db: DatabaseManager) {
    *     security:
    *       - adminPassword: []
    */
-  router.post('/delete', requireAdminPassword, async (req: Request, res: Response) => {
+    router.post('/delete', async (req: Request, res: Response) => {
     try {
       const { email } = req.body;
 
@@ -176,7 +176,7 @@ export function createAdminRouter(db: DatabaseManager) {
    *     security:
    *       - adminPassword: []
    */
-  router.post('/update', requireAdminPassword, async (req: Request, res: Response) => {
+    router.post('/update', async (req: Request, res: Response) => {
     try {
       const { email, session_key, refresh_token, expires_at, status } = req.body;
 

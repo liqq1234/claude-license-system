@@ -1,29 +1,11 @@
-import axios from 'axios'
+import { poolApi } from './apiClient'
 import logger from '@/utils/logger'
-
-// 创建专门用于Claude Pool Manager的axios实例
-const claudePoolApi = axios.create({
-  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:8787', // Claude Pool Manager后端地址
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
-// 响应拦截器
-claudePoolApi.interceptors.response.use(
-  response => response.data,
-  error => {
-    logger.error('Claude Pool API Error:', error)
-    return Promise.reject(error)
-  }
-)
 
 // Claude Pool Manager相关API
 export const claudePoolService = {
   // 获取可用的邮箱账户列表
   getAvailableEmails: async () => {
-    const response = await claudePoolApi.get('/api/emails')
+    const response = await poolApi.get('/api/emails')
     return response
   },
 
@@ -33,7 +15,7 @@ export const claudePoolService = {
     if (expiresIn) {
       payload.expires_in = expiresIn
     }
-    const response = await claudePoolApi.post('/api/login', payload)
+    const response = await poolApi.post('/api/login', payload)
     return response
   },
 
@@ -47,7 +29,7 @@ export const claudePoolService = {
     if (expiresIn) {
       payload.expires_in = expiresIn
     }
-    const response = await claudePoolApi.post('/api/login', payload)
+    const response = await poolApi.post('/api/login', payload)
     return response
   },
 
@@ -63,7 +45,7 @@ export const claudePoolService = {
 
   // 获取所有账户状态（新版本）
   getAllAccountsStatus: async () => {
-    const response = await claudePoolApi.get('/api/accounts/status')
+    const response = await poolApi.get('/api/accounts/status')
     return response
   },
 
@@ -72,7 +54,7 @@ export const claudePoolService = {
     logger.log('🔗 claudePoolService.getAccountStatus 开始执行');
     logger.log('🆔 雪花ID:', snowflakeId);
 
-    const response = await claudePoolApi.get(`/api/account-status/${snowflakeId}`)
+    const response = await poolApi.get(`/api/account-status/${snowflakeId}`)
     logger.log('✅ getAccountStatus 成功响应:', response);
     return response
   },
@@ -80,7 +62,7 @@ export const claudePoolService = {
   // 激活账户
   activateAccount: async (accountId) => {
     logger.log('🚀 激活账户:', accountId);
-    const response = await claudePoolApi.post(`/api/accounts/${accountId}/activate`)
+    const response = await poolApi.post(`/api/accounts/${accountId}/activate`)
     logger.log('✅ 账户激活响应:', response);
     return response
   },
@@ -88,7 +70,7 @@ export const claudePoolService = {
   // 设置账户限流状态（测试用）
   setAccountRateLimit: async (accountId, minutes = 5) => {
     logger.log('⏰ 设置账户限流:', accountId, minutes);
-    const response = await claudePoolApi.post(`/api/accounts/${accountId}/set-rate-limit`, { minutes })
+    const response = await poolApi.post(`/api/accounts/${accountId}/set-rate-limit`, { minutes })
     logger.log('✅ 限流设置响应:', response);
     return response
   },
@@ -108,7 +90,7 @@ export const claudePoolService = {
     logger.log('🌐 请求URL:', `/api/account-usage/${snowflakeId}`);
 
     try {
-      const response = await claudePoolApi.post(`/api/account-usage/${snowflakeId}`, payload)
+      const response = await poolApi.post(`/api/account-usage/${snowflakeId}`, payload)
       logger.log('✅ recordAccountUsage 成功响应:', response);
       return response
     } catch (error) {
@@ -119,4 +101,4 @@ export const claudePoolService = {
   }
 }
 
-export default claudePoolApi
+export default poolApi

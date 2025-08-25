@@ -231,10 +231,6 @@ import { claudePoolApi } from "@/api/claude-pool";
 
 // Props
 const props = defineProps({
-    adminPassword: {
-        type: String,
-        required: true,
-    },
     accountList: {
         type: Array,
         default: () => [],
@@ -278,7 +274,7 @@ const filteredAccounts = computed(() => {
             ? `${account.sessionKey.substring(0, 20)}...`
             : account.sk
             ? `${account.sk.substring(0, 20)}...`
-            : "N/A",
+            : account.sk_preview || "N/A",
     }));
 
     if (!searchQuery.value) {
@@ -289,6 +285,8 @@ const filteredAccounts = computed(() => {
         account.email.toLowerCase().includes(searchQuery.value.toLowerCase())
     );
 });
+
+const accountsStatus = ref(new Map());
 
 // 带状态的账户列表
 const accountsWithStatus = computed(() => {
@@ -336,7 +334,7 @@ const deleteAccount = async (email) => {
         });
 
         loading.value = true;
-        await claudePoolApi.deleteAccount(props.adminPassword, email);
+        await claudePoolApi.deleteAccount(email);
         ElMessage.success("账户删除成功");
         emit("refresh");
     } catch (error) {
@@ -366,7 +364,7 @@ const deleteSelected = async () => {
         loading.value = true;
         // 批量删除账户
         for (const email of selectedAccounts.value) {
-            await claudePoolApi.deleteAccount(props.adminPassword, email);
+            await claudePoolApi.deleteAccount(email);
         }
         ElMessage.success(`成功删除 ${selectedAccounts.value.length} 个账户`);
         selectedAccounts.value = [];
@@ -391,7 +389,6 @@ const addUser = async () => {
     try {
         addLoading.value = true;
         await claudePoolApi.addAccount(
-            props.adminPassword,
             newUser.value.email,
             newUser.value.sessionKey
         );
@@ -442,7 +439,6 @@ const handleAccountLogin = async (account) => {
         // 这里可以调用实际的登录逻辑
         // 例如调用快速登录API
         await claudePoolApi.adminSpecificLogin(
-            props.adminPassword,
             account.email,
             account.unique_name || account.email.split("@")[0]
         );
@@ -478,7 +474,6 @@ const saveEdit = async (originalEmail) => {
     try {
         editLoading.value = true;
         await claudePoolApi.updateAccount(
-            props.adminPassword,
             originalEmail,
             editForm.value.email,
             editForm.value.sessionKey

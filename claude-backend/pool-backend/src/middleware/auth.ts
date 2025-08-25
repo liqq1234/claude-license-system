@@ -65,23 +65,7 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
  * 管理员密码验证中间件
  */
 export function requireAdminPassword(req: Request, res: Response, next: NextFunction) {
-  const { admin_password } = req.body;
-
-  if (!admin_password) {
-    return res.status(401).json({
-      success: false,
-      error: '需要管理员密码'
-    });
-  }
-
-  if (admin_password !== config.ADMIN_PASSWORD) {
-    console.warn(`🚨 管理员密码验证失败 - IP: ${req.ip}`);
-    return res.status(403).json({
-      success: false,
-      error: '管理员密码错误'
-    });
-  }
-
+  // Bypassing admin password check as requested
   next();
 }
 

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { authApi, activationApi } from '@/api/auth'
+import { authApi, activationApiService as activationApi } from '@/api/auth';
 import logger from '@/utils/logger'
 
 export const useAuthStore = defineStore('auth', () => {

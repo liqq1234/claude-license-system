@@ -317,6 +317,11 @@ class ActivationService {
         ]
       }
 
+      console.log("🔍 [SERVICE DEBUG] getActivationCodes调用参数:", {
+        page, limit, serviceType, status, batchId, search
+      });
+      console.log("🔍 [SERVICE DEBUG] 构建的查询条件:", whereClause);
+
       const { count, rows } = await ActivationCode.findAndCountAll({
         where: whereClause,
         include: [
@@ -331,7 +336,13 @@ class ActivationService {
         order: [['created_at', 'DESC']]
       })
 
-      return {
+      console.log("🔍 [SERVICE DEBUG] 数据库查询结果:", {
+        总数: count,
+        当前页数据条数: rows.length,
+        分页信息: { page, limit, offset: (page - 1) * limit }
+      });
+
+      const result = {
         total: count,
         page,
         limit,
@@ -345,9 +356,21 @@ class ActivationService {
           maxUsage: code.max_usage,
           expiresAt: code.expires_at,
           createdAt: code.created_at,
-          batchDescription: code.batch?.description
+          batchDescription: code.batch ? code.batch.description : null
         }))
       }
+      
+      console.log("🔍 [SERVICE DEBUG] 最终返回结果:", {
+        total: result.total,
+        codesLength: result.codes.length,
+        sampleCode: result.codes[0] ? {
+          id: result.codes[0].id,
+          code: result.codes[0].code,
+          status: result.codes[0].status
+        } : null
+      });
+      
+      return result;
     } catch (error) {
       logger.error('获取激活码列表失败:', error)
       throw new Error('获取激活码列表失败')

@@ -4,7 +4,8 @@
  * 用于在登录前检测网站状态，包括 429 限流检测和冷却时间获取
  */
 
-import fetch from 'node-fetch';
+import apiClient from './apiClient';
+import { AxiosError } from 'axios';
 
 export interface ClaudeStatusResult {
   isAvailable: boolean;
@@ -35,7 +36,7 @@ export async function checkClaudeStatus(
 ): Promise<ClaudeStatusResult> {
   const startTime = Date.now();
   const timestamp = new Date().toISOString();
-  
+
   const {
     timeout = 10000,
     userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -45,22 +46,17 @@ export async function checkClaudeStatus(
   try {
     console.log(`🔍 开始检测 Claude 网站状态: ${baseUrl}`);
 
-    // 构建检测 URL - 使用聊天页面作为检测端点
     const checkUrl = `${baseUrl}/chat`;
-    
-    const response = await fetch(checkUrl, {
-      method: 'GET',
+
+    const response = await apiClient.get(checkUrl, {
+      timeout,
       headers: {
         'User-Agent': userAgent,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
       },
-      timeout: timeout,
-      redirect: followRedirects ? 'follow' : 'manual'
+      maxRedirects: followRedirects ? 5 : 0,
+      validateStatus: () => true, // 让axios不因4xx/5xx状态码抛出错误
     });
 
     const responseTime = Date.now() - startTime;
@@ -68,36 +64,24 @@ export async function checkClaudeStatus(
 
     console.log(`📊 Claude 网站响应: ${statusCode} (${responseTime}ms)`);
 
-    // 检查是否被限流 (429 Too Many Requests)
     if (statusCode === 429) {
-      const retryAfterHeader = response.headers.get('retry-after');
+      const retryAfterHeader = response.headers['retry-after'];
       const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
-      
-      // 尝试从响应体中获取更多限流信息
+
       let cooldownTime = retryAfter;
       let errorMessage = 'Rate limited (429)';
-      
+
+      const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+
       try {
-        const responseText = await response.text();
-        
-        // 尝试解析 JSON 响应中的冷却时间
-        try {
-          const jsonResponse = JSON.parse(responseText);
-          if (jsonResponse.retryAfter) {
-            cooldownTime = jsonResponse.retryAfter;
-          }
-          if (jsonResponse.message) {
-            errorMessage = jsonResponse.message;
-          }
-        } catch {
-          // 如果不是 JSON，尝试从 HTML 中提取信息
-          const cooldownMatch = responseText.match(/(\d+)\s*秒后重试|retry\s+after\s+(\d+)\s*seconds?/i);
-          if (cooldownMatch) {
-            cooldownTime = parseInt(cooldownMatch[1] || cooldownMatch[2], 10);
-          }
+        const jsonResponse = JSON.parse(responseText);
+        if (jsonResponse.retryAfter) cooldownTime = jsonResponse.retryAfter;
+        if (jsonResponse.message) errorMessage = jsonResponse.message;
+      } catch {
+        const cooldownMatch = responseText.match(/(\d+)\s*秒后重试|retry\s+after\s+(\d+)\s*seconds?/i);
+        if (cooldownMatch) {
+          cooldownTime = parseInt(cooldownMatch[1] || cooldownMatch[2], 10);
         }
-      } catch (parseError) {
-        console.warn('⚠️ 无法解析 429 响应体:', parseError);
       }
 
       console.log(`🚫 Claude 网站被限流: ${statusCode}, 冷却时间: ${cooldownTime}秒`);
@@ -114,69 +98,39 @@ export async function checkClaudeStatus(
       };
     }
 
-    // 检查其他错误状态码
     if (statusCode >= 500) {
       console.log(`❌ Claude 网站服务器错误: ${statusCode}`);
-      return {
-        isAvailable: false,
-        statusCode,
-        isRateLimited: false,
-        errorMessage: `Server error (${statusCode})`,
-        responseTime,
-        timestamp
-      };
+      return { isAvailable: false, statusCode, isRateLimited: false, errorMessage: `Server error (${statusCode})`, responseTime, timestamp };
     }
 
     if (statusCode >= 400) {
       console.log(`⚠️ Claude 网站客户端错误: ${statusCode}`);
-      return {
-        isAvailable: false,
-        statusCode,
-        isRateLimited: false,
-        errorMessage: `Client error (${statusCode})`,
-        responseTime,
-        timestamp
-      };
+      return { isAvailable: false, statusCode, isRateLimited: false, errorMessage: `Client error (${statusCode})`, responseTime, timestamp };
     }
 
-    // 检查是否成功 (2xx 状态码)
     if (statusCode >= 200 && statusCode < 300) {
       console.log(`✅ Claude 网站可用: ${statusCode}`);
-      return {
-        isAvailable: true,
-        statusCode,
-        isRateLimited: false,
-        responseTime,
-        timestamp
-      };
+      return { isAvailable: true, statusCode, isRateLimited: false, responseTime, timestamp };
     }
 
-    // 重定向状态码 (3xx)
     console.log(`🔄 Claude 网站重定向: ${statusCode}`);
-    return {
-      isAvailable: true,
-      statusCode,
-      isRateLimited: false,
-      responseTime,
-      timestamp
-    };
+    return { isAvailable: true, statusCode, isRateLimited: false, responseTime, timestamp };
 
   } catch (error) {
     const responseTime = Date.now() - startTime;
     console.error('💥 Claude 网站检测失败:', error);
 
     let errorMessage = 'Network error';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      
-      // 检查是否是超时错误
-      if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+    if (error instanceof AxiosError) {
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
         errorMessage = 'Request timeout';
-      }
-      // 检查是否是连接错误
-      else if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+      } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
         errorMessage = 'Connection refused or host not found';
+      } else {
+        errorMessage = error.message;
       }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
     }
 
     return {

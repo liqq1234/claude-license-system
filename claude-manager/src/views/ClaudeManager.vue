@@ -8,10 +8,9 @@
                     <div class="status-content">
                         <div class="status-info">
                             <span class="status-icon">✅</span>
-                            <span class="status-text">管理员已登录</span>
+                            <span class="status-text">服务已连接</span>
                             <span class="url-info">连接到: {{ apiBaseUrl }}</span>
                         </div>
-                        <el-button type="danger" size="small" @click="handleLogout">退出登录</el-button>
                     </div>
                 </el-card>
             </div>
@@ -23,7 +22,6 @@
                         <!-- 账户管理 -->
                         <el-tab-pane label="账户管理" name="manage">
                             <ClaudeAccountManagement
-                                :admin-password="adminPassword"
                                 :account-list="accountList"
                                 @refresh="loadAccountList"
                             />
@@ -32,17 +30,13 @@
                         <!-- 批量操作 -->
                         <el-tab-pane label="批量操作" name="batch_add">
                             <ClaudeBatchOperations
-                                :admin-password="adminPassword"
                                 @success="() => { loadAccountList(); activeTab = 'manage'; }"
                             />
                         </el-tab-pane>
 
                         <!-- 快速登录 -->
                         <el-tab-pane label="快速登录" name="quick_login">
-                            <ClaudeQuickLogin
-                                :admin-password="adminPassword"
-                                :account-list="accountList"
-                            />
+                            <ClaudeQuickLogin :account-list="accountList" />
                         </el-tab-pane>
                     </el-tabs>
                 </el-card>
@@ -54,45 +48,32 @@
 <script setup>
 import { ref, reactive, onMounted } from "vue";
 import { ElMessage } from "element-plus";
-import { claudePoolApi } from "@/api/claude-pool";
+import { claudePoolApi as claudePoolService } from "@/api/claude-pool";
 import ClaudeAccountManagement from "@/components/claude/ClaudeAccountManagement.vue";
 import ClaudeBatchOperations from "@/components/claude/ClaudeBatchOperations.vue";
 import ClaudeQuickLogin from "@/components/claude/ClaudeQuickLogin.vue";
 
 // 响应式数据
-const isAuthenticated = ref(true); // 直接设置为已认证状态
-const adminPassword = ref("admin123"); // 设置默认密码
 const accountList = ref([]);
 const activeTab = ref("manage");
 const apiBaseUrl = ref(
-    import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:3457"
+    import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:8787"
 );
 
 // 加载账户列表
 const loadAccountList = async () => {
-    if (!adminPassword.value) return;
-
     try {
-        const response = await claudePoolApi.getAccountList(
-            adminPassword.value
-        );
+        const response = await claudePoolService.getAccountList();
 
-        // 后端直接返回数组，不是包含accounts字段的对象
-        if (Array.isArray(response)) {
-            accountList.value = response.map((item) => ({
-                email: item.email,
-                sessionKey: "", // 我们不存储完整的SK，只在编辑时获取
-                sk_preview: item.sk_preview,
-                index: item.index,
-            }));
+        if (response && response.success && Array.isArray(response.accounts)) {
+            accountList.value = response.accounts;
         } else {
             accountList.value = [];
+            ElMessage.error(response.error || "获取账户列表数据格式不正确");
         }
-
-        console.log("加载的账户列表:", accountList.value);
     } catch (error) {
+        // 错误消息已由API客户端的拦截器处理
         console.error("加载账户列表失败:", error);
-        ElMessage.error("加载账户列表失败");
         accountList.value = [];
     }
 };

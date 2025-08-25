@@ -170,10 +170,6 @@ import { User } from "@element-plus/icons-vue";
 import { ClaudeLoginManager } from "@/utils/claude-login-core.js";
 
 const props = defineProps({
-    adminPassword: {
-        type: String,
-        required: true,
-    },
     accountList: {
         type: Array,
         default: () => [],
@@ -210,11 +206,10 @@ const generateRandomId = () => {
 const initDirectLogin = async () => {
     try {
         console.log("开始初始化直登功能...");
-        console.log("管理员密码:", props.adminPassword ? "已提供" : "未提供");
 
         // 从后端获取账户列表和对应的完整 Session Key
         const poolApiUrl =
-            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:3457";
+            import.meta.env.VITE_CLAUDE_POOL_API_URL || "http://localhost:8787";
         console.log("API地址:", poolApiUrl);
 
         const response = await fetch(
@@ -224,9 +219,7 @@ const initDirectLogin = async () => {
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({
-                    admin_password: props.adminPassword,
-                }),
+                body: JSON.stringify({}),
             }
         );
 
@@ -259,7 +252,6 @@ const initDirectLogin = async () => {
             sessionKeys: sessionKeys,
             defaultExpiresIn: 0,
             maxExpiresIn: 0,
-            adminPassword: props.adminPassword, // 传入管理员密码
         });
 
         directLoginEnabled.value = Object.keys(sessionKeys).length > 0;
@@ -394,9 +386,7 @@ onMounted(async () => {
     }
 
     // 初始化直登功能
-    if (props.adminPassword) {
-        await initDirectLogin();
-    }
+    await initDirectLogin();
 });
 </script>
 

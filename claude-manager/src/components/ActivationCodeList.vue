@@ -287,7 +287,7 @@
 import { ref, onMounted } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { DocumentCopy } from "@element-plus/icons-vue";
-import { activationApi } from "../api/activation";
+import { activationApi } from "../api/activation.js";
 
 const props = defineProps({
     loading: {
@@ -323,10 +323,11 @@ const loadCodes = async () => {
         };
 
         const response = await activationApi.getCodes(params);
-
-        if (response.data && response.data.status === 0) {
-            codes.value = response.data.codes || [];
-            totalCount.value = response.data.total || 0;
+        
+        // 后端实际返回结构: {status: 0, codes: [...], total: 17, page: 1, limit: 20}
+        if (response && response.status === 0) {
+            codes.value = response.codes || [];
+            totalCount.value = response.total || 0;
         } else {
             codes.value = [];
             totalCount.value = 0;

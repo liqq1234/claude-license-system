@@ -58,13 +58,6 @@ import { ref } from "vue";
 import { ElMessage } from "element-plus";
 import { claudePoolApi } from "@/api/claude-pool";
 
-const props = defineProps({
-    adminPassword: {
-        type: String,
-        required: true,
-    },
-});
-
 const emit = defineEmits(["success"]);
 
 const loading = ref(false);
@@ -147,7 +140,6 @@ const handleBatchAdd = async () => {
             try {
                 // 调用实际的API添加账户
                 await claudePoolApi.addAccount(
-                    props.adminPassword,
                     account.email,
                     account.sessionKey
                 );

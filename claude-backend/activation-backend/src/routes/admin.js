@@ -7,7 +7,7 @@ const router = express.Router()
 const tokenPoolService = require('../services/tokenPoolService')
 const activationService = require('../services/activationService')
 const { User, UserActivation, UsageRecord, TokenPool } = require('../models')
-const { authenticateToken, requireAdmin } = require('../middleware/auth')
+
 const { validateRequest } = require('../middleware/validation')
 const { body, query, param } = require('express-validator')
 const { Op } = require('sequelize')
@@ -17,8 +17,6 @@ const logger = require('../utils/logger')
 
 // 添加Token到池中
 router.post('/token-pool/add',
-  authenticateToken,
-  requireAdmin,
   [
     body('serviceType').isIn(['gamma', 'figma', 'canva']).withMessage('无效的服务类型'),
     body('accountAlias').notEmpty().withMessage('账号别名不能为空'),
@@ -68,8 +66,6 @@ router.post('/token-pool/add',
 
 // 获取Token池状态
 router.get('/token-pool/status',
-  authenticateToken,
-  requireAdmin,
   [
     query('serviceType').optional().isIn(['gamma', 'figma', 'canva']).withMessage('无效的服务类型')
   ],
@@ -95,8 +91,6 @@ router.get('/token-pool/status',
 
 // 更新Token状态
 router.put('/token-pool/:tokenId/status',
-  authenticateToken,
-  requireAdmin,
   [
     param('tokenId').isUUID().withMessage('无效的Token ID'),
     body('status').isIn(['active', 'disabled', 'expired']).withMessage('无效的状态'),
@@ -126,8 +120,6 @@ router.put('/token-pool/:tokenId/status',
 
 // 删除Token
 router.delete('/token-pool/:tokenId',
-  authenticateToken,
-  requireAdmin,
   [
     param('tokenId').isUUID().withMessage('无效的Token ID')
   ],
@@ -155,8 +147,6 @@ router.delete('/token-pool/:tokenId',
 
 // 获取用户列表
 router.get('/users',
-  authenticateToken,
-  requireAdmin,
   [
     query('page').optional().isInt({ min: 1 }).withMessage('页码必须大于0'),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('每页数量必须在1-100之间'),
@@ -251,8 +241,6 @@ router.get('/users',
 
 // 更新用户状态
 router.put('/users/:userId/status',
-  authenticateToken,
-  requireAdmin,
   [
     param('userId').isUUID().withMessage('无效的用户ID'),
     body('status').isIn(['active', 'suspended', 'deleted']).withMessage('无效的状态'),
@@ -296,8 +284,6 @@ router.put('/users/:userId/status',
 
 // 获取系统概览统计
 router.get('/analytics/overview',
-  authenticateToken,
-  requireAdmin,
   async (req, res) => {
     try {
       const today = new Date()
@@ -352,8 +338,6 @@ router.get('/analytics/overview',
 
 // 获取使用趋势
 router.get('/analytics/trends',
-  authenticateToken,
-  requireAdmin,
   [
     query('period').optional().isIn(['7d', '30d', '90d']).withMessage('无效的时间周期'),
     query('serviceType').optional().isIn(['gamma', 'figma', 'canva']).withMessage('无效的服务类型')
@@ -427,7 +411,7 @@ router.get('/analytics/trends',
 // ========== 管理员统计API ==========
 
 // 获取系统统计数据
-router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
     const stats = await activationService.getSystemStats()
 
@@ -446,7 +430,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
 })
 
 // 获取图表数据
-router.get('/chart-data', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/chart-data', async (req, res) => {
   try {
     const chartData = await activationService.getChartData()
 
@@ -465,23 +449,42 @@ router.get('/chart-data', authenticateToken, requireAdmin, async (req, res) => {
 })
 
 // 获取激活码列表（支持分页和筛选）
-router.get('/codes', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/codes', async (req, res) => {
   try {
+    // 设置缓存控制头，防止浏览器缓存
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    console.log("🔍 [BACKEND DEBUG] 收到获取激活码列表请求");
+    console.log("🔍 [BACKEND DEBUG] 请求路径:", req.path);
+    console.log("🔍 [BACKEND DEBUG] 请求方法:", req.method);
+    console.log("🔍 [BACKEND DEBUG] 查询参数:", req.query);
+    
     const { page = 1, limit = 20, status, type, search } = req.query
 
-    const codes = await activationService.getActivationCodesList({
+    const requestParams = {
       page: parseInt(page),
       limit: parseInt(limit),
       status,
       type,
       search
-    })
+    };
+    console.log("🔍 [BACKEND DEBUG] 处理后的参数:", requestParams);
 
-    res.json({
+    const codes = await activationService.getActivationCodes(requestParams);
+    console.log("🔍 [BACKEND DEBUG] 从service获取的数据:", codes);
+    console.log("🔍 [BACKEND DEBUG] codes类型:", typeof codes);
+    console.log("🔍 [BACKEND DEBUG] codes.codes长度:", codes.codes ? codes.codes.length : 'undefined');
+
+    const responseData = {
       status: 0,
       message: '获取激活码列表成功',
       data: codes
-    })
+    };
+    console.log("🔍 [BACKEND DEBUG] 最终响应数据:", responseData);
+    
+    res.json(responseData);
   } catch (error) {
     logger.error('获取激活码列表失败:', error)
     res.status(500).json({

@@ -22,7 +22,7 @@ services:
       - DB_PORT=${DB_PORT}
       - DB_NAME=license_server
       - DB_USER=${LICENSE_DB_USER}
-      - DB_PASS=${LICENSE_DB_PASSWORD}
+      - DB_PASSWORD=${LICENSE_DB_PASSWORD}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}

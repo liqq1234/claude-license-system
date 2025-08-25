@@ -354,11 +354,11 @@ class ApiController {
 
 
   async getStats(req, res) {
+    // 记录请求开始时间 - 移到函数开头
+    const startTime = Date.now()
+    
     try {
       logger.info('📊 获取统计数据请求')
-
-      // 记录请求开始时间
-      const startTime = Date.now()
 
       // 从混合存储服务获取统计数据
       const result = await this.activationManager.storage.getActivationStats()
@@ -608,6 +608,9 @@ class ApiController {
    *         description: 服务器错误
    */
   async generateCodes(req, res) {
+    // 记录请求开始时间 - 移到函数开头
+    const startTime = Date.now()
+    
     try {
       logger.info('📝 收到批量生成激活码请求')
 
@@ -638,9 +641,6 @@ class ApiController {
           message: '生成数量必须大于0'
         })
       }
-
-      // 记录请求开始时间
-      const startTime = Date.now()
 
       // 调用混合存储服务生成激活码
       const result = await this.activationManager.storage.generateActivationCodes({

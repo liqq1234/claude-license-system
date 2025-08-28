@@ -15,8 +15,9 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: [
       'localhost',
       '127.0.0.1',
-      'ai.lqqmail.xyz',
-      'admin.lqqmail.xyz'
+    'ai.lqqmail.xyz',
+    'admin.lqqmail.xyz',
+    'ai.lqqmail.icu'
     ]
   },
   define: {

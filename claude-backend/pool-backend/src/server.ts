@@ -83,7 +83,8 @@ const allowedOrigins = [
   'https://demo.fuclaude.com',
   'https://www.claude.lqqmail.xyz',
   'https://admin.lqqmail.xyz',  // 添加管理后台域名
-  'https://ai.lqqmail.xyz' 
+  'https://ai.lqqmail.xyz',
+  'https://ai.lqqmail.icu' 
   
 ];
 

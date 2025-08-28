@@ -15,8 +15,8 @@ export default defineConfig({
     allowedHosts: [
       'localhost',
       '127.0.0.1',
-      'ai.lqqmail.xyz',
-      'admin.lqqmail.xyz'
+      'ai.lqqmail.icu',
+      'admin.lqqmail.icu'
     ]
     // 移除代理配置，直接请求后端
   }

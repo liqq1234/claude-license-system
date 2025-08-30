@@ -1,4 +1,5 @@
 'use strict'
+require('dotenv').config();
 const bodyParser = require('body-parser');
 const express = require('express');
 const cors = require('cors');
@@ -16,7 +17,13 @@ const poolProxyRouter = require('./routes/poolProxy');
 const { swaggerUi, specs } = require('./config/swagger');
 
 const app = express();
-
+function apiKeyAuth(req, res, next) {
+  const apiKey = req.headers['api-key'];
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    return res.status(401).json({ message: 'Invalid API Key' });
+  }
+  next();
+}
 // 添加 CORS 支持
 app.use(cors({
   origin: [
@@ -73,6 +80,7 @@ app.use('/api/admin', adminApiRouter);
 app.use('/api/proxy/claude', claudeProxyRouter);
 app.use('/api/claude', claudeUsersRouter);
 app.use('/api/pool', poolProxyRouter);
+app.use('/activation/v1/admin', apiKeyAuth, adminApiRouter);
 app.get('/', (req, res) => res.redirect('/status'))
 app.get('/status', (req, res) => res.json({status: 0}))
 

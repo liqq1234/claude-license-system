@@ -86,7 +86,8 @@ const allowedOrigins = [
   'https://ai.lqqmail.xyz',
   'https://ai.lqqmail.icu',
   'https://admin.lqqmail.icu',  // 添加管理后台域名
-  'https://admin.lqqmail.icu'  // 支持 http 协议的管理后台
+  'https://claude.lqqmail.icu',
+  'http://claude.lqqmail.icu'
 ];
 
 app.use(cors({

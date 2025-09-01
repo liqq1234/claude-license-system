@@ -84,21 +84,21 @@ const ActivationCode = sequelize.define('ActivationCode', {
     allowNull: true,
     field: 'created_by',
     comment: '创建者'
-  },
-  created_at: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    defaultValue: DataTypes.NOW,
-    field: 'created_at',
-    comment: '创建时间'
-  },
-  updated_at: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    defaultValue: DataTypes.NOW,
-    field: 'updated_at',
-    comment: '更新时间'
   }
+//   created_at: {
+//     type: DataTypes.DATE,
+//     allowNull: false,
+//     defaultValue: DataTypes.NOW,
+//     field: 'created_at',
+//     comment: '创建时间'
+//   },
+//   updated_at: {
+//     type: DataTypes.DATE,
+//     allowNull: false,
+//     defaultValue: DataTypes.NOW,
+//     field: 'updated_at',
+//     comment: '更新时间'
+//   }
 }, {
   tableName: 'activation_codes',
   timestamps: true,

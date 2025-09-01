@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [vue()],
   resolve: {
     alias: {
@@ -15,9 +15,16 @@ export default defineConfig({
     allowedHosts: [
       'localhost',
       '127.0.0.1',
-      'ai.lqqmail.xyz',
+      'ai.lqqmail.icu',
+      'admin.lqqmail.icu',
+      'claude.lqqmail.icu',
       'admin.lqqmail.xyz'
     ]
-    // 移除代理配置，直接请求后端
+  },
+  define: {
+    __DEV__: mode === 'development'
+  },
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : []
   }
-})
+}))

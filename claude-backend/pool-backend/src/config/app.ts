@@ -51,7 +51,9 @@ export const corsConfig = {
     'https://claude.lqqmail.xyz',
     'https://www.claude.lqqmail.xyz',
     'https://admin.lqqmail.xyz',  // 添加管理后台域名
-    'https://ai.lqqmail.xyz'      // 添加AI服务域名
+    'https://ai.lqqmail.xyz',   // 添加AI服务域名
+    'https://claude.lqqmail.icu',
+    'http://claude.lqqmail.icu'
   ]
 };
 

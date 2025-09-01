@@ -133,14 +133,31 @@ class HybridStorageService {
           })
         }
 
+
+
+
+
         // 3.3 批量插入激活码到 MySQL
-        const createdCodes = await this.mysql.ActivationCode.bulkCreate(activationCodes, {
+        // 确保数据对象中不包含 id 字段
+        const cleanActivationCodes = activationCodes.map(code => {
+          const { id, ...cleanCode } = code;
+          return cleanCode;
+        });
+        
+        const createdCodes = await this.mysql.ActivationCode.bulkCreate(cleanActivationCodes, {
           transaction,
-          validate: true
+          validate: true,
+          ignoreDuplicates: false,
+          fields: [
+            'code', 'type', 'duration', 'max_devices', 'status', 
+            'description', 'batch_id', 'tags', 'expires_at', 
+            'activated_at', 'created_by'
+          ] // 明确指定要插入的字段，排除 id 字段
         })
 
         return { batch, codes, createdCodes }
       })
+
 
       // 4. 异步缓存热点数据到 Redis（不阻塞响应）
       this.cacheNewActivationCodes(result.createdCodes).catch(error => {

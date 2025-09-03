@@ -14,6 +14,12 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
+# 数据库文件（包含敏感数据）
+**/database/claudehub.sql
+**/database/license_server.sql
+**/*.sql.backup
+**/*_dump.sql
+
 # 注意：.env.development 和 .env.production 会被提交
 # 它们只包含模板和非敏感配置
 # 实际使用时应复制为 .env 并修改敏感信息

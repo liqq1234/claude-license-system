@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => ({
     }
   },
   server: {
-    port: 8080,
+    port: 8081,
     host: '0.0.0.0',  // 允许外部访问
     allowedHosts: [
       'localhost',

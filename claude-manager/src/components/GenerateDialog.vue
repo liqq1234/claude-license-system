@@ -33,17 +33,11 @@
                 />
             </el-form-item>
 
-            <el-form-item label="权限设置" prop="permissions">
-                <el-select
-                    v-model="form.permissions"
-                    multiple
-                    placeholder="请选择权限"
-                    style="width: 100%"
-                >
-                    <el-option label="基础权限" value="basic" />
-                    <el-option label="高级权限" value="premium" />
-                    <el-option label="企业权限" value="enterprise" />
-                    <el-option label="API访问" value="api_access" />
+            <el-form-item label="服务类型" prop="serviceType">
+                <el-select v-model="form.serviceType" placeholder="请选择服务类型" style="width: 100%">
+                    <el-option label="Claude专用" value="claude" />
+                    <el-option label="Midjourney专用" value="midjourney" />
+                    <el-option label="全能激活码（支持所有服务）" value="universal" />
                 </el-select>
             </el-form-item>
 
@@ -94,7 +88,7 @@ const form = reactive({
     batchSize: 1,
     description: "",
     tags: [],
-    permissions: ["basic"], // 添加缺失的 permissions 字段
+    serviceType: "claude", // 默认为Claude服务
 });
 
 const rules = {
@@ -104,6 +98,9 @@ const rules = {
         { required: true, message: "请输入最大设备数", trigger: "blur" },
     ],
     batchSize: [{ required: true, message: "请输入生成数量", trigger: "blur" }],
+    serviceType: [
+        { required: true, message: "请选择服务类型", trigger: "change" },
+    ],
 };
 
 const generateCodes = async () => {
@@ -119,8 +116,7 @@ const generateCodes = async () => {
             maxDevices: form.maxDevices,
             description: form.description,
             tags: form.tags,
-            permissions: form.permissions,
-            enhanced: form.permissions && form.permissions.length > 1,
+            serviceType: form.serviceType, // 使用服务类型而不是权限
         };
 
         // 如果不是永久卡，添加持续时间
@@ -154,7 +150,7 @@ const resetForm = () => {
         batchSize: 1,
         description: "",
         tags: [],
-        permissions: ["basic"],
+        serviceType: "claude",
     });
     formRef.value?.clearValidate();
 };

@@ -3,7 +3,7 @@ import logger from '@/utils/logger'
 
 // 创建用于 activation-backend 的 axios 实例
 export const activationApi = axios.create({
-  baseURL: import.meta.env.VITE_ACTIVATION_API_URL,
+  baseURL: import.meta.env.VITE_ACTIVATION_API_URL || 'http://localhost:8888',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json'
@@ -12,7 +12,7 @@ export const activationApi = axios.create({
 
 // 创建用于 pool-backend 的 axios 实例
 export const poolApi = axios.create({
-  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL,
+  baseURL: import.meta.env.VITE_CLAUDE_POOL_API_URL || 'http://localhost:8787',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json'

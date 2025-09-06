@@ -10,25 +10,56 @@ const logger = require('../utils/logger')
 class ActivationService {
   constructor() {
     this.serviceTypes = {
+      // 新的服务分类
+      claude: {
+        name: 'Claude AI助手',
+        defaultValidDays: 30,
+        defaultMaxUsage: 100,
+        category: 'ai-assistant',
+        description: 'Claude AI智能对话助手专用激活码'
+      },
+      midjourney: {
+        name: 'Midjourney AI绘图',
+        defaultValidDays: 30,
+        defaultMaxUsage: 100,
+        category: 'ai-art',
+        description: 'Midjourney AI绘图工具专用激活码'
+      },
+      universal: {
+        name: '全能激活码',
+        defaultValidDays: 30,
+        defaultMaxUsage: 200,
+        category: 'universal',
+        description: '支持Claude和Midjourney的通用激活码'
+      },
+      // 保留原有的服务类型以便兼容
       gamma: {
         name: 'Gamma设计工具',
         defaultValidDays: 30,
-        defaultMaxUsage: 30
+        defaultMaxUsage: 30,
+        category: 'design',
+        description: 'Gamma设计工具激活码'
       },
       figma: {
         name: 'Figma设计工具',
         defaultValidDays: 30,
-        defaultMaxUsage: 50
+        defaultMaxUsage: 50,
+        category: 'design',
+        description: 'Figma设计工具激活码'
       },
       canva: {
         name: 'Canva设计平台',
         defaultValidDays: 30,
-        defaultMaxUsage: 40
+        defaultMaxUsage: 40,
+        category: 'design',
+        description: 'Canva设计平台激活码'
       },
       premium: {
         name: '高级会员',
         defaultValidDays: 365,
-        defaultMaxUsage: 1000
+        defaultMaxUsage: 1000,
+        category: 'premium',
+        description: '高级会员激活码'
       }
     }
   }
@@ -133,16 +164,36 @@ class ActivationService {
   }
 
   /**
+   * 检查激活码是否兼容指定服务类型
+   */
+  isCodeCompatible(codeServiceType, requestedServiceType) {
+    // 全能激活码兼容所有服务
+    if (codeServiceType === 'universal') {
+      return true
+    }
+    
+    // 精确匹配
+    if (codeServiceType === requestedServiceType) {
+      return true
+    }
+    
+    return false
+  }
+
+  /**
    * 兑换激活码
    */
   async redeemActivationCode(userId, code, serviceType) {
     try {
-      // 查找激活码
+      // 查找激活码 - 支持全能激活码和精确匹配
       const activationCode = await ActivationCode.findOne({
         where: {
           code: code.toUpperCase(),
-          service_type: serviceType,
           status: 'unused',
+          [Op.or]: [
+            { service_type: serviceType },      // 精确匹配
+            { service_type: 'universal' }       // 全能激活码
+          ],
           [Op.or]: [
             { expires_at: null },
             { expires_at: { [Op.gt]: new Date() } }
@@ -151,7 +202,12 @@ class ActivationService {
       })
 
       if (!activationCode) {
-        throw new Error('激活码无效、已使用或已过期')
+        throw new Error('激活码无效、已使用、已过期或不兼容此服务')
+      }
+
+      // 验证激活码兼容性
+      if (!this.isCodeCompatible(activationCode.service_type, serviceType)) {
+        throw new Error(`此激活码不支持 ${this.serviceTypes[serviceType]?.name || serviceType} 服务`)
       }
 
       // 检查用户是否已经激活过相同服务
@@ -167,15 +223,18 @@ class ActivationService {
         throw new Error('您已经激活过此服务')
       }
 
+      // 获取服务配置
+      const serviceConfig = this.serviceTypes[serviceType] || this.serviceTypes[activationCode.service_type]
+      
       // 计算过期时间
       const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + 30) // 默认30天
+      expiresAt.setDate(expiresAt.getDate() + (serviceConfig.defaultValidDays || 30))
 
       // 创建用户激活记录
       const userActivation = await UserActivation.create({
         user_id: userId,
         activation_code_id: activationCode.id,
-        service_type: serviceType,
+        service_type: serviceType,  // 使用请求的服务类型
         activated_at: new Date(),
         expires_at: expiresAt,
         remaining_usage: activationCode.max_usage,
@@ -459,6 +518,72 @@ class ActivationService {
     } catch (error) {
       logger.error('获取激活统计失败:', error)
       throw new Error('获取激活统计失败')
+    }
+  }
+
+  /**
+   * 获取支持的服务类型列表
+   */
+  getSupportedServiceTypes() {
+    try {
+      const serviceTypes = Object.keys(this.serviceTypes).map(key => ({
+        value: key,
+        name: this.serviceTypes[key].name,
+        category: this.serviceTypes[key].category,
+        description: this.serviceTypes[key].description,
+        defaultValidDays: this.serviceTypes[key].defaultValidDays,
+        defaultMaxUsage: this.serviceTypes[key].defaultMaxUsage,
+        // 标识是否为新的核心服务
+        isPrimary: ['claude', 'midjourney', 'universal'].includes(key),
+        // 标识是否为兼容服务
+        isLegacy: ['gamma', 'figma', 'canva', 'premium'].includes(key)
+      }))
+
+      // 按优先级排序：核心服务在前
+      serviceTypes.sort((a, b) => {
+        if (a.isPrimary && !b.isPrimary) return -1
+        if (!a.isPrimary && b.isPrimary) return 1
+        return 0
+      })
+
+      return {
+        serviceTypes,
+        categories: {
+          'ai-assistant': {
+            name: 'AI助手',
+            description: 'AI智能对话助手服务',
+            services: serviceTypes.filter(s => s.category === 'ai-assistant')
+          },
+          'ai-art': {
+            name: 'AI绘图',
+            description: 'AI图像生成和设计服务',
+            services: serviceTypes.filter(s => s.category === 'ai-art')
+          },
+          'universal': {
+            name: '通用激活码',
+            description: '支持多种服务的万能激活码',
+            services: serviceTypes.filter(s => s.category === 'universal')
+          },
+          'design': {
+            name: '设计工具',
+            description: '传统设计工具服务（兼容保留）',
+            services: serviceTypes.filter(s => s.category === 'design')
+          },
+          'premium': {
+            name: '高级服务',
+            description: '高级会员服务（兼容保留）',
+            services: serviceTypes.filter(s => s.category === 'premium')
+          }
+        },
+        compatibility: {
+          universal: ['claude', 'midjourney'],
+          claude: ['claude'],
+          midjourney: ['midjourney']
+        }
+      }
+    } catch (error) {
+      logger.error('获取服务类型列表失败:', error)
+      throw new Error('获取服务类型列表失败')
     }
   }
 }

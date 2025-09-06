@@ -85,15 +85,10 @@ class EmailActivationService {
       // 4. 计算时长
       const durationHours = this.calculateDuration(codeRecord.type, codeRecord.duration)
       const activatedAt = new Date()
+      const serviceType = codeRecord.service_type || 'universal'
 
-      // 5. 检查用户是否已有会员状态并计算新的过期时间
-      let membership = await UserMembership.findOne({
-        where: { user_id: user.id },
-        transaction
-      })
-
-      const currentExpiresAt = membership ? membership.membership_expires_at : null
-      const expiryResult = this.calculateNewExpiresAt(currentExpiresAt, durationHours, activatedAt)
+      // 5. 根据服务类型计算新的过期时间
+      const expiryResult = await this.calculateNewExpiresAt(user.id, serviceType, durationHours, activatedAt, transaction)
       const { codeExpiresAt, membershipExpiresAt } = expiryResult
 
       // 6. 更新激活码状态，设置激活时间和过期时间（主数据）
@@ -114,11 +109,12 @@ class EmailActivationService {
         activated_at: activatedAt,
         expires_at: codeExpiresAt,  // 初始值，触发器会确保与主表一致
         ip_address: ipAddress,
-        user_agent: userAgent
+        user_agent: userAgent,
+        service_type: serviceType   // 添加服务类型
       }, { transaction })
 
-      // 8. 更新或创建用户会员状态
-      await this.updateUserMembership(user.id, durationHours, membershipExpiresAt, activatedAt, transaction)
+      // 8. 更新或创建用户会员状态（根据服务类型）
+      await this.updateUserMembership(user.id, serviceType, durationHours, membershipExpiresAt, activatedAt, transaction)
 
       // 8. 记录操作日志
       await OperationLog.create({
@@ -129,9 +125,12 @@ class EmailActivationService {
         user_agent: userAgent
       }, { transaction })
 
-      // 在提交前获取更新后的会员状态
+      // 在提交前获取更新后的会员状态（该服务类型的）
       const updatedMembership = await UserMembership.findOne({
-        where: { user_id: user.id },
+        where: { 
+          user_id: user.id,
+          service_type: serviceType 
+        },
         transaction
       })
 
@@ -191,7 +190,8 @@ class EmailActivationService {
         include: [
           {
             model: UserMembership,
-            as: 'membership'
+            as: 'memberships',  // 获取所有服务类型的会员状态
+            required: false
           },
           {
             model: UserActivationBinding,
@@ -213,6 +213,23 @@ class EmailActivationService {
         }
       }
 
+      // 整理多服务类型的会员状态
+      const membershipsByType = {}
+      if (user.memberships) {
+        user.memberships.forEach(membership => {
+          membershipsByType[membership.service_type] = membership
+        })
+      }
+
+      // 为了向后兼容，返回主要的会员状态（universal或第一个有效的）
+      const primaryMembership = membershipsByType['universal'] || 
+                               user.memberships?.[0] || 
+                               {
+                                 status: 'inactive',
+                                 total_duration_hours: 0,
+                                 remaining_duration_hours: 0
+                               }
+
       return {
         success: true,
         code: errors.SUCCESS,
@@ -223,14 +240,12 @@ class EmailActivationService {
             email: user.email,
             username: user.username
           },
-          membership: user.membership || {
-            status: 'inactive',
-            total_duration_hours: 0,
-            remaining_duration_hours: 0
-          },
+          membership: primaryMembership,
+          memberships: membershipsByType,  // 新增：所有服务类型的会员状态
           activations: user.activationBindings.map(binding => ({
             code: binding.activation_code,
             type: binding.activationCode.type,
+            service_type: binding.activationCode.service_type, // 添加服务类型
             duration_hours: binding.duration_hours,
             activated_at: binding.activated_at,
             expires_at: binding.expires_at,
@@ -396,25 +411,42 @@ class EmailActivationService {
    * @param {Date} activatedAt - 激活时间
    * @returns {Object} 包含激活码过期时间和会员过期时间的对象
    */
-  calculateNewExpiresAt(currentExpiresAt, durationHours, activatedAt) {
+  /**
+   * 计算新的过期时间 - 支持多服务类型
+   * @param {number} userId - 用户ID
+   * @param {string} serviceType - 服务类型
+   * @param {number} durationHours - 持续时间（小时）
+   * @param {Date} activatedAt - 激活时间
+   * @param {Transaction} transaction - 数据库事务
+   */
+  async calculateNewExpiresAt(userId, serviceType, durationHours, activatedAt, transaction) {
     const now = new Date()
 
     // 激活码本身的过期时间（固定：激活时间 + 持续时间）
     const codeExpiresAt = new Date(activatedAt.getTime() + durationHours * 60 * 60 * 1000)
 
+    // 查找该用户特定服务类型的现有会员状态
+    const existingMembership = await UserMembership.findOne({
+      where: { 
+        user_id: userId,
+        service_type: serviceType 
+      },
+      transaction
+    })
+
     let membershipExpiresAt
 
-    if (!currentExpiresAt) {
-      // 首次激活：会员过期时间 = 激活码过期时间
+    if (!existingMembership || !existingMembership.membership_expires_at) {
+      // 首次激活该服务类型：会员过期时间 = 激活码过期时间
       membershipExpiresAt = codeExpiresAt
     } else {
-      const currentExpires = new Date(currentExpiresAt)
+      const currentExpires = new Date(existingMembership.membership_expires_at)
 
       if (currentExpires > now) {
-        // 当前会员未过期：在现有过期时间基础上叠加时间
+        // 同一服务类型且当前会员未过期：在现有过期时间基础上叠加时间
         membershipExpiresAt = new Date(currentExpires.getTime() + durationHours * 60 * 60 * 1000)
       } else {
-        // 当前会员已过期：从激活时间开始重新计算
+        // 同一服务类型但当前会员已过期：从激活时间开始重新计算
         membershipExpiresAt = codeExpiresAt
       }
     }
@@ -450,37 +482,43 @@ class EmailActivationService {
   }
 
   /**
-   * 更新用户会员状态
+   * 更新用户会员状态 - 支持多服务类型
    * @param {number} userId - 用户ID
+   * @param {string} serviceType - 服务类型
    * @param {number} addedHours - 新增的小时数
    * @param {Date} newExpiresAt - 新的过期时间
    * @param {Date} activatedAt - 激活时间
    * @param {Transaction} transaction - 数据库事务
    */
-  async updateUserMembership(userId, addedHours, newExpiresAt, activatedAt, transaction) {
+  async updateUserMembership(userId, serviceType, addedHours, newExpiresAt, activatedAt, transaction) {
+    // 查找该用户特定服务类型的会员记录
     let membership = await UserMembership.findOne({
-      where: { user_id: userId },
+      where: { 
+        user_id: userId,
+        service_type: serviceType 
+      },
       transaction
     })
 
     const now = new Date()
 
     if (!membership) {
-      // 首次激活：创建新的会员记录
+      // 首次激活该服务类型：创建新的会员记录
       const remainingHours = Math.ceil((newExpiresAt - now) / (1000 * 60 * 60))
 
       membership = await UserMembership.create({
         user_id: userId,
+        service_type: serviceType,
         total_duration_hours: addedHours,
         remaining_duration_hours: Math.max(0, remainingHours),
-        membership_start_at: activatedAt, // 使用首次激活时间作为会员开始时间
+        membership_start_at: activatedAt,
         membership_expires_at: newExpiresAt,
         status: 'active',
         last_activation_at: activatedAt,
         activation_count: 1
       }, { transaction })
     } else {
-      // 后续激活：更新现有会员记录
+      // 后续激活同一服务类型：更新现有会员记录（时间叠加）
       const newTotalHours = membership.total_duration_hours + addedHours
       const remainingHours = Math.ceil((newExpiresAt - now) / (1000 * 60 * 60))
 

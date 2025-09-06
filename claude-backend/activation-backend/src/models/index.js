@@ -91,15 +91,24 @@ UserActivationBinding.belongsTo(ActivationCode, {
   as: 'activationCode'
 })
 
-// 用户会员状态关联
-User.hasOne(UserMembership, {
+// 用户会员状态关联 - 修改为一对多关系，支持多服务类型
+User.hasMany(UserMembership, {
   foreignKey: 'user_id',
-  as: 'membership'
+  as: 'memberships'
 })
 
 UserMembership.belongsTo(User, {
   foreignKey: 'user_id',
   as: 'user'
+})
+
+// 为向后兼容，保留原有的单一membership关联（默认返回universal或第一个）
+User.hasOne(UserMembership, {
+  foreignKey: 'user_id',
+  as: 'membership',
+  where: {
+    service_type: 'universal'
+  }
 })
 
 // 代理相关关联

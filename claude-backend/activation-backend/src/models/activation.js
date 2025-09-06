@@ -84,6 +84,12 @@ const ActivationCode = sequelize.define('ActivationCode', {
     allowNull: true,
     field: 'created_by',
     comment: '创建者'
+  },
+  service_type: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    defaultValue: 'universal',
+    comment: '服务类型：claude, midjourney, universal'
   }
 //   created_at: {
 //     type: DataTypes.DATE,
@@ -120,6 +126,9 @@ const ActivationCode = sequelize.define('ActivationCode', {
     },
     {
       fields: ['expires_at']
+    },
+    {
+      fields: ['service_type']
     }
   ]
 })

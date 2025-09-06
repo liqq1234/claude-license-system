@@ -50,6 +50,7 @@ class HybridStorageService {
       batchSize = 1,
       description = '',
       tags = [],
+      serviceType = 'claude', // 添加服务类型参数，默认为claude
       enhanced = false,
       permissions = [],
       priority = 5,
@@ -59,6 +60,12 @@ class HybridStorageService {
     // 参数验证
     if (!type || !['daily', 'weekly', 'monthly', 'yearly', 'permanent'].includes(type)) {
       return { status: 1, message: '无效的激活码类型' }
+    }
+
+    // 验证服务类型
+    const validServiceTypes = ['claude', 'midjourney', 'universal']
+    if (serviceType && !validServiceTypes.includes(serviceType)) {
+      return { status: 1, message: `无效的服务类型，支持: ${validServiceTypes.join(', ')}` }
     }
 
     if (batchSize < 1 || batchSize > 10000) {
@@ -72,7 +79,7 @@ class HybridStorageService {
     const startTime = Date.now()
 
     try {
-      logger.info(`🔄 开始批量生成 ${batchSize} 个激活码 (类型: ${type})`)
+      logger.info(`🔄 开始批量生成 ${batchSize} 个激活码 (类型: ${type}, 服务类型: ${serviceType})`)
 
       // 1. 生成批次ID和基础信息
       const batchId = this.generateBatchId()
@@ -121,6 +128,7 @@ class HybridStorageService {
           activationCodes.push({
             code,
             type,
+            service_type: serviceType, // 添加服务类型字段
             duration: type === 'permanent' ? null : (duration || this.getDefaultDuration(type)),
             max_devices: maxDevices,
             status: 'unused',  // 新生成的激活码状态为 unused
@@ -149,10 +157,10 @@ class HybridStorageService {
           validate: true,
           ignoreDuplicates: false,
           fields: [
-            'code', 'type', 'duration', 'max_devices', 'status', 
+            'code', 'type', 'service_type', 'duration', 'max_devices', 'status', 
             'description', 'batch_id', 'tags', 'expires_at', 
             'activated_at', 'created_by'
-          ] // 明确指定要插入的字段，排除 id 字段
+          ] // 明确指定要插入的字段，包含 service_type
         })
 
         return { batch, codes, createdCodes }

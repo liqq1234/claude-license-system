@@ -1,5 +1,5 @@
 <template>
-    <div class="claude-dashboard-desktop">
+    <div :class="['claude-dashboard-desktop', themeClass]">
         <!-- 顶部导航栏 -->
         <header class="desktop-header">
             <div class="header-left">
@@ -7,11 +7,54 @@
             </div>
 
             <div class="header-right">
+                <!-- 站内购买按钮 -->
+                <button class="purchase-btn" @click="openPurchaseDialog">站内购买</button>
                 <!-- 兑换码按钮 -->
                 <button class="redeem-btn" @click="showRedeemDialog = true">兑换码</button>
-                <!-- 状态信息 -->
-                <div class="status-info">
-                    <span class="expire-text">{{ membershipExpireText }}</span>
+                <!-- 有效期查看下拉菜单 -->
+                <div class="status-dropdown" @click="toggleMembershipDropdown">
+                    <div class="status-display">
+                        <span class="expire-text">{{ membershipExpireText }}</span>
+                        <svg
+                            class="dropdown-icon"
+                            :class="{ 'rotate': showMembershipDropdown }"
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            fill="currentColor"
+                            viewBox="0 0 256 256"
+                        >
+                            <path
+                                d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"
+                            />
+                        </svg>
+                    </div>
+                    <div v-if="showMembershipDropdown" class="membership-dropdown">
+                        <div class="dropdown-header">服务有效期</div>
+                        <div
+                            class="membership-item"
+                            :class="{ 'selected': currentSelectedServiceType === membership.serviceType }"
+                            v-for="membership in membershipList"
+                            :key="membership.serviceType"
+                            @click="selectServiceType(membership.serviceType)"
+                        >
+                            <div class="service-info">
+                                <span
+                                    class="service-name"
+                                >{{ getServiceDisplayName(membership.serviceType) }}</span>
+                                <span
+                                    class="service-status"
+                                    :class="membership.statusClass"
+                                >{{ membership.statusText }}</span>
+                            </div>
+                            <div class="expire-info">
+                                <span class="expire-time">{{ membership.expireText }}</span>
+                            </div>
+                        </div>
+                        <div v-if="membershipList.length === 0" class="no-membership">
+                            <span>暂无有效服务</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 用户头像菜单 -->
@@ -98,27 +141,50 @@
 
                     <!-- 标签栏 -->
                     <div class="tabs-section">
-                        <div class="tab-item">
+                        <div
+                            :class="['tab-item', { active: activeTab === 'claude' }]"
+                            @click="switchTab('claude')"
+                        >
                             <span>Claude</span>
+                        </div>
+                        <div
+                            :class="['tab-item', { active: activeTab === 'midjourney' }]"
+                            @click="switchTab('midjourney')"
+                        >
+                            <span>Midjourney</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Claude列表 -->
                 <div class="accounts-section">
-                    <div class="accounts-header">
-                        <h2 class="accounts-title">Claude</h2>
-                    </div>
+                    <!-- 服务网格 -->
+                    <div class="services-grid">
+                        <!-- Claude账号网格组件 -->
+                        <div v-if="activeTab === 'claude'" class="service-section">
+                            <AccountGrid
+                                ref="accountGridRef"
+                                :accounts="accounts"
+                                :loading="loading"
+                                :error="error"
+                                @account-click="handleAccountClick"
+                                @retry="refreshAccounts"
+                            />
+                        </div>
 
-                    <!-- 账号网格组件 -->
-                    <AccountGrid
-                        ref="accountGridRef"
-                        :accounts="accounts"
-                        :loading="loading"
-                        :error="error"
-                        @account-click="handleAccountClick"
-                        @retry="refreshAccounts"
-                    />
+                        <!-- Midjourney卡片 -->
+                        <div v-if="activeTab === 'midjourney'" class="service-section">
+                            <div class="midjourney-section">
+                                <MidjourneyCard
+                                    ref="midjourneyCardRef"
+                                    @click="handleMidjourneyClick"
+                                    @access-generated="handleMidjourneyAccess"
+                                    @need-activation="handleMidjourneyActivation"
+                                    @permission-checked="handleMidjourneyPermissionChecked"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>
@@ -150,6 +216,9 @@
                 </div>
             </div>
         </div>
+
+        <!-- 购买弹窗 -->
+        <PurchaseDialog v-model="showPurchaseDialog" @purchase-success="handlePurchaseSuccess" />
 
         <!-- 个人中心弹窗 -->
         <div v-if="showProfileDialog" class="modal-overlay" @click="showProfileDialog = false">
@@ -217,6 +286,7 @@
                                 <div v-else class="redemption-table">
                                     <div class="table-header">
                                         <div class="col-code">兑换码</div>
+                                        <div class="col-service-type">服务类型</div>
                                         <div class="col-time">兑换时间</div>
                                         <div class="col-status">状态</div>
                                         <div class="col-remark">备注</div>
@@ -229,6 +299,12 @@
                                     >
                                         <div class="col-code">
                                             <span class="code-text">{{ record.code }}</span>
+                                        </div>
+                                        <div class="col-service-type">
+                                            <span
+                                                class="service-type-badge"
+                                                :class="`service-${record.serviceType}`"
+                                            >{{ record.serviceTypeText }}</span>
                                         </div>
                                         <div
                                             class="col-time"
@@ -349,6 +425,8 @@ import { ElMessage } from "element-plus";
 import { claudeUsersService } from "@/api/claude-users";
 import { authApi } from "@/api/auth";
 import AccountGrid from "@/components/common/AccountGrid.vue";
+import MidjourneyCard from "@/components/common/MidjourneyCard.vue";
+import PurchaseDialog from "@/components/PurchaseDialog.vue";
 import logger from "@/utils/logger";
 
 const router = useRouter();
@@ -356,12 +434,16 @@ const authStore = useAuthStore();
 
 // 响应式数据
 const showRedeemDialog = ref(false);
+const showPurchaseDialog = ref(false);
 const showProfileDialog = ref(false);
 const showPasswordDialog = ref(false);
 const showEmailDialog = ref(false);
 const showUserMenu = ref(false);
+const showMembershipDropdown = ref(false); // 有效期下拉菜单状态
+const currentSelectedServiceType = ref('claude'); // 当前选中的服务类型
 const redeemCode = ref("");
-const activeTab = ref("basic");
+const activeTab = ref("claude");
+const currentTheme = ref("claude"); // 当前主题
 
 // 账户列表相关数据
 const accounts = ref([]);
@@ -395,18 +477,49 @@ const userInfo = computed(
         }
 );
 
-// 会员过期时间文本
+// 会员过期时间文本（根据当前选中的服务类型）
 const membershipExpireText = computed(() => {
-    const membership = authStore.membership;
-    if (!membership || !membership.membership_expires_at) {
+    const userInfo = authStore.userInfo;
+    
+    if (!userInfo || !userInfo.activations || userInfo.activations.length === 0) {
         return "有效期 未激活";
     }
 
-    const expiresAt = new Date(membership.membership_expires_at);
-    const now = new Date();
+    // 按服务类型分组激活记录
+    const serviceGroups = {};
+    userInfo.activations.forEach(activation => {
+        const serviceType = activation.service_type || 'universal';
+        if (!serviceGroups[serviceType]) {
+            serviceGroups[serviceType] = [];
+        }
+        serviceGroups[serviceType].push(activation);
+    });
 
-    if (expiresAt <= now) {
-        return "有效期 已过期";
+    // 获取当前选中服务类型的激活记录
+    const currentServiceActivations = serviceGroups[currentSelectedServiceType.value];
+    
+    if (!currentServiceActivations || currentServiceActivations.length === 0) {
+        // 如果当前服务类型没有激活记录，选择第一个可用的服务类型
+        const availableServices = Object.keys(serviceGroups);
+        if (availableServices.length > 0) {
+            currentSelectedServiceType.value = availableServices[0];
+            return membershipExpireText.value; // 递归调用
+        }
+        return "有效期 未激活";
+    }
+
+    // 找到最新的激活记录
+    const latestActivation = currentServiceActivations.reduce((latest, current) => {
+        return new Date(current.expires_at) > new Date(latest.expires_at) ? current : latest;
+    });
+
+    const expiresAt = new Date(latestActivation.expires_at);
+    const now = new Date();
+    const isActive = expiresAt > now && latestActivation.status === 'active';
+
+    if (!isActive) {
+        const serviceDisplayName = getServiceDisplayName(currentSelectedServiceType.value);
+        return `${serviceDisplayName}有效期 已过期`;
     }
 
     // 格式化时间为 YYYY-MM-DD HH:mm:ss
@@ -417,7 +530,53 @@ const membershipExpireText = computed(() => {
     const minutes = String(expiresAt.getMinutes()).padStart(2, "0");
     const seconds = String(expiresAt.getSeconds()).padStart(2, "0");
 
-    return `有效期 ${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    const serviceDisplayName = getServiceDisplayName(currentSelectedServiceType.value);
+    return `${serviceDisplayName}有效期 ${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+});
+
+// 会员列表（支持多服务类型） - 修复：使用真实的会员状态数据
+const membershipList = computed(() => {
+    const userInfo = authStore.userInfo;
+
+    if (!userInfo || !userInfo.memberships) {
+        return [];
+    }
+
+    // 基于真实的会员状态数据生成列表
+    return Object.entries(userInfo.memberships).map(([serviceType, membership]) => {
+        if (!membership || !membership.membership_expires_at) {
+            return null;
+        }
+
+        const expiresAt = new Date(membership.membership_expires_at);
+        const now = new Date();
+        const isActive = expiresAt > now && membership.status === 'active';
+
+        return {
+            serviceType,
+            statusClass: isActive ? "active" : "expired",
+            statusText: isActive ? "有效" : "已过期",
+            expireText: isActive
+                ? `${expiresAt.getFullYear()}-${String(
+                      expiresAt.getMonth() + 1
+                  ).padStart(2, "0")}-${String(expiresAt.getDate()).padStart(
+                      2,
+                      "0"
+                  )} ${String(expiresAt.getHours()).padStart(2, "0")}:${String(
+                      expiresAt.getMinutes()
+                  ).padStart(2, "0")}`
+                : "已过期",
+            activationsCount: 1, // 每个服务类型一个会员状态
+            membership: membership // 添加完整的会员信息
+        };
+    }).filter(item => item !== null && item.statusClass === "active"); // 只显示有效的会员状态
+});
+
+// 主题相关计算属性
+const themeClass = computed(() => {
+    return currentTheme.value === "midjourney"
+        ? "theme-monochrome"
+        : "theme-warm";
 });
 
 // 个人中心标签页
@@ -428,6 +587,24 @@ const profileTabs = [
 
 // 兑换记录数据
 const redemptionRecords = ref([]);
+
+// 切换标签和主题
+const switchTab = (tab) => {
+    // 先切换标签（立即切换内容）
+    activeTab.value = tab;
+
+    // 延迟切换主题（产生平滑过渡效果）
+    setTimeout(() => {
+        currentTheme.value = tab;
+    }, 150);
+};
+
+// 打开购买对话框
+const openPurchaseDialog = () => {
+    console.log("点击站内购买按钮");
+    showPurchaseDialog.value = true;
+    console.log("showPurchaseDialog:", showPurchaseDialog.value);
+};
 
 // 修改密码
 const handleChangePassword = async () => {
@@ -513,6 +690,10 @@ const fetchRedemptionRecords = async () => {
                 (activation) => ({
                     id: activation.id,
                     code: activation.code,
+                    serviceType: activation.service_type || "universal",
+                    serviceTypeText: getServiceTypeText(
+                        activation.service_type
+                    ),
                     redeemTime: activation.activated_at,
                     status: getRedemptionStatus(activation),
                     statusText: getRedemptionStatusText(activation),
@@ -561,6 +742,16 @@ const getRedemptionRemark = (activation) => {
     };
     const typeName = typeMap[activation.type] || activation.type;
     return `${typeName} - ${activation.duration_hours}小时`;
+};
+
+// 获取服务类型文本
+const getServiceTypeText = (serviceType) => {
+    const typeMap = {
+        claude: "Claude专用",
+        midjourney: "Midjourney专用",
+        universal: "全能激活码",
+    };
+    return typeMap[serviceType] || "全能激活码";
 };
 
 // 格式化时间
@@ -621,8 +812,23 @@ const handleRedeem = async () => {
     }
 };
 
+const handlePurchaseSuccess = async () => {
+    // 购买成功后刷新用户信息和会员状态
+    try {
+        await authStore.fetchMembershipStatus();
+        await fetchRedemptionRecords();
+        ElMessage.success("购买成功！激活码已自动绑定到您的账户");
+    } catch (error) {
+        console.error("刷新用户信息失败:", error);
+    }
+};
+
 const toggleUserMenu = () => {
     showUserMenu.value = !showUserMenu.value;
+    // 关闭会员下拉菜单
+    if (showUserMenu.value) {
+        showMembershipDropdown.value = false;
+    }
 };
 
 const handleLogout = async () => {
@@ -633,6 +839,42 @@ const handleLogout = async () => {
 // 头像加载错误处理
 const handleAvatarError = () => {
     // 头像加载失败时，el-avatar 会自动显示 slot 中的内容（用户名首字母）
+};
+
+// 切换会员状态下拉菜单
+const toggleMembershipDropdown = () => {
+    showMembershipDropdown.value = !showMembershipDropdown.value;
+    // 关闭其他下拉菜单
+    if (showMembershipDropdown.value) {
+        showUserMenu.value = false;
+    }
+};
+
+// 获取服务类型显示名称
+const getServiceDisplayName = (serviceType) => {
+    const typeMap = {
+        claude: "Claude",
+        midjourney: "Midjourney",
+        universal: "全能",
+    };
+    return typeMap[serviceType] || "未知";
+};
+
+// 选择服务类型
+const selectServiceType = (serviceType) => {
+    currentSelectedServiceType.value = serviceType;
+    showMembershipDropdown.value = false; // 选择后关闭下拉菜单
+};
+
+// 自动选择第一个可用的服务类型
+const initializeDefaultServiceType = () => {
+    const userInfo = authStore.userInfo;
+    if (userInfo && userInfo.activations && userInfo.activations.length > 0) {
+        const serviceTypes = [...new Set(userInfo.activations.map(activation => activation.service_type || 'universal'))];
+        if (serviceTypes.length > 0 && !serviceTypes.includes(currentSelectedServiceType.value)) {
+            currentSelectedServiceType.value = serviceTypes[0];
+        }
+    }
 };
 
 // 获取账户列表
@@ -935,10 +1177,58 @@ const handleAccountClick = async (account) => {
     }
 };
 
+// Midjourney相关处理方法
+const midjourneyCardRef = ref(null);
+
+// 处理Midjourney卡片点击
+const handleMidjourneyClick = (data) => {
+    logger.log("🎨 Midjourney卡片被点击:", data);
+
+    if (data.hasPermission) {
+        ElMessage.info("您有Midjourney使用权限，点击开始创作按钮进入服务");
+    } else if (data.permissionData?.needActivation) {
+        ElMessage.warning("请先激活Midjourney服务");
+        // 可以打开激活码兑换弹窗
+        showRedeemDialog.value = true;
+    } else if (data.permissionData?.expired) {
+        ElMessage.warning("Midjourney服务已过期，请重新激活");
+        showRedeemDialog.value = true;
+    } else if (data.permissionData?.noUsage) {
+        ElMessage.warning("Midjourney使用次数已用完");
+    } else {
+        ElMessage.warning("您暂无Midjourney访问权限");
+    }
+};
+
+// 处理Midjourney访问
+const handleMidjourneyAccess = (result) => {
+    logger.log("🚀 Midjourney访问链接已生成:", result);
+    ElMessage.success("正在打开Midjourney AI绘图服务...");
+};
+
+// 处理Midjourney激活需求
+const handleMidjourneyActivation = () => {
+    logger.log("🔑 需要激活Midjourney服务");
+    ElMessage.info("请使用Midjourney激活码来激活服务");
+    showRedeemDialog.value = true;
+};
+
+// 处理Midjourney权限检查结果
+const handleMidjourneyPermissionChecked = (result) => {
+    logger.log("🔍 Midjourney权限检查完成:", result);
+
+    if (!result.success && result.message) {
+        console.warn("Midjourney权限检查警告:", result.message);
+    }
+};
+
 // 点击外部关闭用户菜单
 const handleClickOutside = (event) => {
     if (!event.target.closest(".user-menu")) {
         showUserMenu.value = false;
+    }
+    if (!event.target.closest(".status-dropdown")) {
+        showMembershipDropdown.value = false;
     }
 };
 
@@ -948,7 +1238,10 @@ onMounted(() => {
     document.addEventListener("click", handleClickOutside);
 
     // 初始化时获取会员状态和兑换记录
-    authStore.fetchCompleteUserInfo();
+    authStore.fetchCompleteUserInfo().then(() => {
+        // 获取用户信息后初始化默认服务类型
+        initializeDefaultServiceType();
+    });
     fetchRedemptionRecords();
 
     // 获取账号列表
@@ -967,6 +1260,7 @@ onMounted(() => {
     color: #2d2a26;
     display: flex;
     flex-direction: column;
+    transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 /* 桌面端顶部导航栏 */
@@ -981,6 +1275,8 @@ onMounted(() => {
     top: 0;
     z-index: 100;
     box-shadow: 0 1px 3px rgba(139, 125, 107, 0.1);
+    transition: background-color 0.4s ease, border-color 0.4s ease,
+        box-shadow 0.4s ease;
 }
 
 .header-left {
@@ -1035,17 +1331,127 @@ onMounted(() => {
     gap: 16px;
 }
 
-.status-info {
+/* 有效期下拉菜单 */
+.status-dropdown {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 2px;
 }
 
-.status-text {
+.status-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.status-display:hover {
+    background: rgba(93, 78, 55, 0.05);
+}
+
+.dropdown-icon {
+    width: 16px;
+    height: 16px;
+    color: #8b7d6b;
+    transition: transform 0.2s ease;
+}
+
+.dropdown-icon.rotate {
+    transform: rotate(180deg);
+}
+
+.membership-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 280px;
+    background: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    z-index: 1000;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.dropdown-header {
+    padding: 12px 16px;
+    background: #f8f6f3;
+    border-bottom: 1px solid #e5e5e5;
     font-size: 14px;
     font-weight: 600;
     color: #5d4e37;
+}
+
+.membership-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.membership-item:hover {
+    background: #f8f6f3;
+}
+
+.membership-item.selected {
+    background: #e3f2fd;
+    border-left: 3px solid #1976d2;
+}
+
+.membership-item:last-child {
+    border-bottom: none;
+}
+
+.service-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.service-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.service-status {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.service-status.active {
+    background: #e8f5e8;
+    color: #388e3c;
+}
+
+.service-status.expired {
+    background: #ffebee;
+    color: #d32f2f;
+}
+
+.expire-info {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.expire-time {
+    font-size: 12px;
+    color: #8b7d6b;
+}
+
+.no-membership {
+    padding: 16px;
+    text-align: center;
+    color: #999;
+    font-size: 14px;
 }
 
 .expire-text {
@@ -1066,12 +1472,36 @@ onMounted(() => {
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s ease;
 }
 
 .redeem-btn:hover {
     background: #b8621a;
     border-color: #b8621a;
+}
+
+/* 站内购买按钮 */
+.purchase-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    border: 1px solid #11998e;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-right: 12px;
+}
+
+.purchase-btn:hover {
+    background: linear-gradient(135deg, #0e8579 0%, #2dd968 100%);
+    border-color: #0e8579;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(17, 153, 142, 0.3);
 }
 
 /* 用户菜单 */
@@ -1147,6 +1577,7 @@ onMounted(() => {
     border-right: 1px solid rgb(235, 230, 220);
     overflow-y: auto;
     flex-shrink: 0;
+    transition: background-color 0.4s ease, border-color 0.4s ease;
 }
 
 .sidebar-content {
@@ -1900,6 +2331,29 @@ onMounted(() => {
     font-weight: 500;
 }
 
+.service-type-badge {
+    padding: 3px 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.service-claude {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.service-midjourney {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.service-universal {
+    background: #e8f5e8;
+    color: #388e3c;
+}
+
 .col-time {
     color: #8b7d6b;
     font-size: 14px;
@@ -1980,4 +2434,150 @@ onMounted(() => {
 
 /* 桌面端专用 - 禁用移动端响应式 */
 /* 保持桌面端布局，不进行移动端适配 */
+
+/* 服务网格布局 */
+.services-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.service-section {
+    background: rgb(255, 254, 250);
+    border: 1px solid rgb(235, 230, 220);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.service-title {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #2d2a26;
+    border-bottom: 1px solid rgb(235, 230, 220);
+    padding-bottom: 12px;
+}
+
+/* Midjourney特殊布局 */
+.midjourney-section {
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: 400px;
+}
+
+/* 标签栏样式更新 */
+.tabs-section {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.tab-item {
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
+    color: #8b7d6b;
+    background: rgb(245, 242, 235);
+    border: 1px solid rgb(235, 230, 220);
+}
+
+.tab-item:hover {
+    background: rgb(255, 254, 250);
+    color: #2d2a26;
+    border-color: rgb(210, 105, 30);
+}
+
+.tab-item.active {
+    background: #d2691e;
+    color: white;
+    border-color: #d2691e;
+    box-shadow: 0 2px 4px rgba(210, 105, 30, 0.2);
+}
+
+/* 黑白主题样式 */
+.claude-dashboard-desktop.theme-monochrome {
+    background: #f8f9fa;
+    color: #212529;
+}
+
+.claude-dashboard-desktop.theme-monochrome .desktop-header {
+    background: #ffffff;
+    border-bottom: 1px solid #e9ecef;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 站内购买按钮保持绿色不变 */
+/* .purchase-btn 在黑白主题下不覆盖，保持原样 */
+
+.claude-dashboard-desktop.theme-monochrome .redeem-btn {
+    background: #ffffff;
+    border-color: #dee2e6;
+    color: #6c757d;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.claude-dashboard-desktop.theme-monochrome .redeem-btn:hover {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+    color: #495057;
+}
+
+.claude-dashboard-desktop.theme-monochrome .random-login-btn {
+    background: #ffffff;
+    border-color: #dee2e6;
+    color: #6c757d;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.claude-dashboard-desktop.theme-monochrome .random-login-btn:hover {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+    color: #495057;
+}
+
+.claude-dashboard-desktop.theme-monochrome .sidebar {
+    background: #ffffff;
+    border-right: 1px solid #e9ecef;
+}
+
+.claude-dashboard-desktop.theme-monochrome .section-header {
+    background: #f8f9fa;
+    color: #495057;
+}
+
+.claude-dashboard-desktop.theme-monochrome .promo-card {
+    background: #f1f3f4;
+    border: 1px solid #e9ecef;
+}
+
+.claude-dashboard-desktop.theme-monochrome .tab-item {
+    color: #6c757d;
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+}
+
+.claude-dashboard-desktop.theme-monochrome .tab-item:hover {
+    background: #f8f9fa;
+    color: #212529;
+    border-color: #adb5bd;
+}
+
+.claude-dashboard-desktop.theme-monochrome .tab-item.active {
+    background: #495057;
+    color: white;
+    border-color: #495057;
+    box-shadow: 0 2px 4px rgba(73, 80, 87, 0.2);
+}
+
+.claude-dashboard-desktop.theme-monochrome .main-content {
+    background: #ffffff;
+}
+
+.claude-dashboard-desktop.theme-monochrome .service-title {
+    color: #495057;
+}
 </style>

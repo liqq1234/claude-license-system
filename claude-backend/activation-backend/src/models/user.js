@@ -297,6 +297,12 @@ const UserActivationBinding = sequelize.define('UserActivationBinding', {
     type: DataTypes.TEXT,
     allowNull: true,
     comment: '用户代理'
+  },
+  service_type: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    defaultValue: 'universal',
+    comment: '服务类型：claude, midjourney, universal'
   }
 }, {
   tableName: 'user_activation_bindings',
@@ -319,6 +325,9 @@ const UserActivationBinding = sequelize.define('UserActivationBinding', {
     },
     {
       fields: ['expires_at']
+    },
+    {
+      fields: ['service_type']
     }
   ]
 })
@@ -334,8 +343,13 @@ const UserMembership = sequelize.define('UserMembership', {
   user_id: {
     type: DataTypes.BIGINT,
     allowNull: false,
-    unique: true,
     comment: '用户ID'
+  },
+  service_type: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    defaultValue: 'universal',
+    comment: '服务类型: claude, midjourney, universal'
   },
   total_duration_hours: {
     type: DataTypes.INTEGER,
@@ -403,8 +417,9 @@ const UserMembership = sequelize.define('UserMembership', {
   comment: '用户会员状态表',
   indexes: [
     {
-      fields: ['user_id'],
-      unique: true
+      fields: ['user_id', 'service_type'],
+      unique: true,
+      name: 'uk_user_service'
     },
     {
       fields: ['status']

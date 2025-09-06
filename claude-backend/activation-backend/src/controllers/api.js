@@ -621,9 +621,7 @@ class ApiController {
         maxDevices = 1,
         description = '',
         tags = [],
-
-
-
+        serviceType = 'universal', // 添加服务类型参数，默认为universal
         createdBy = 'admin'
       } = req.body
 
@@ -650,9 +648,7 @@ class ApiController {
         maxDevices,
         description,
         tags,
-
-
-
+        serviceType, // 添加服务类型参数
         createdBy
       })
 

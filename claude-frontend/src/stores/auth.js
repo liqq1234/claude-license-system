@@ -10,12 +10,17 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || null)
   const loading = ref(false)
   const membership = ref(null)
+  const memberships = ref({}) // 新增：存储多服务类型的会员状态
   const activationHistory = ref([])
   const membershipStats = ref(null)
 
   // 计算属性
   const isAuthenticated = computed(() => !!token.value)
-  const userInfo = computed(() => user.value)
+  const userInfo = computed(() => ({
+    ...user.value,
+    activations: activationHistory.value,
+    memberships: memberships.value // 新增：包含多服务类型的会员状态
+  }))
   const membershipInfo = computed(() => membership.value)
 
   // 计算剩余时间（小时）
@@ -201,6 +206,11 @@ export const useAuthStore = defineStore('auth', () => {
         // 更新会员信息
         membership.value = response.data.membership || response.data
 
+        // 更新多服务类型的会员状态
+        if (response.data.memberships) {
+          memberships.value = response.data.memberships
+        }
+
         // 如果响应包含激活历史，也更新它
         if (response.data.activations) {
           activationHistory.value = response.data.activations
@@ -218,7 +228,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 获取完整用户信息
   const fetchCompleteUserInfo = async () => {
     try {
-      const response = await activationApi.getCompleteUserInfo()
+      const response = await activationApi.getMembershipStatus()
       if (response.status === 0 && response.data) {
         // 更新用户信息
         if (response.data.user) {
@@ -227,6 +237,10 @@ export const useAuthStore = defineStore('auth', () => {
         // 更新会员信息
         if (response.data.membership) {
           membership.value = response.data.membership
+        }
+        // 更新多服务类型的会员状态
+        if (response.data.memberships) {
+          memberships.value = response.data.memberships
         }
         // 更新激活历史
         if (response.data.activations) {

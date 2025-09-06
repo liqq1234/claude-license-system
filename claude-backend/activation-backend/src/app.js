@@ -13,32 +13,59 @@ const adminApiRouter = require('./routes/admin');
 const claudeProxyRouter = require('./routes/claudeProxy');
 const claudeUsersRouter = require('./routes/claudeUsers');
 const poolProxyRouter = require('./routes/poolProxy');
+const packagesRouter = require('./routes/packages');
+const midjourneyRouter = require('./routes/midjourney');
 const { swaggerUi, specs } = require('./config/swagger');
 
 const app = express();
 
 // 添加 CORS 支持
 app.use(cors({
-  origin: [
-    'http://localhost:3000', // ClaudeProject 前端 (新端口)
-    'http://localhost:3001', // ClaudeProject 前端 (旧端口)
-    'http://localhost:8080',
-    'http://localhost:8081',
-    'http://localhost:8082', // 添加8082端口支持
-    'http://localhost:8083', // 添加8083端口支持
-    'http://localhost:5173',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'http://127.0.0.1:8080',
-    'http://127.0.0.1:8081',
-    'http://127.0.0.1:8082', // 添加8082端口支持
-    'http://127.0.0.1:8083', // 添加8083端口支持
-    'http://127.0.0.1:5173',
-    // 生产环境域名
-    'https://ai.lqqmail.xyz',
-    'https://admin.lqqmail.xyz',
-    'https://claude.lqqmail.xyz'
-  ],
+  origin: function (origin, callback) {
+    // 允许没有origin的请求(比如移动端应用)
+    if (!origin) return callback(null, true);
+    
+    // 允许的源列表
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001', 
+      'http://localhost:8080',
+      'http://localhost:8081',
+      'http://localhost:8082',
+      'http://localhost:8083',
+      'http://localhost:5173',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+      'http://127.0.0.1:8080',
+      'http://127.0.0.1:8081',
+      'http://127.0.0.1:8082',
+      'http://127.0.0.1:8083',
+      'http://127.0.0.1:5173',
+      'https://ai.lqqmail.xyz',
+      'https://admin.lqqmail.xyz',
+      'https://claude.lqqmail.xyz'
+    ];
+    
+    // 检查是否是允许的源
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // 检查是否是局域网IP (192.168.x.x)
+    if (origin && origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
+      return callback(null, true);
+    }
+    
+    // 检查是否是本地IP (10.x.x.x 或 172.x.x.x)
+    if (origin && (
+      origin.match(/^http:\/\/10\.\d+\.\d+\.\d+:\d+$/) ||
+      origin.match(/^http:\/\/172\.\d+\.\d+\.\d+:\d+$/)
+    )) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('不允许的CORS来源'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
@@ -73,6 +100,8 @@ app.use('/api/admin', adminApiRouter);
 app.use('/api/proxy/claude', claudeProxyRouter);
 app.use('/api/claude', claudeUsersRouter);
 app.use('/api/pool', poolProxyRouter);
+app.use('/api/packages', packagesRouter);
+app.use('/api/midjourney', midjourneyRouter);
 app.get('/', (req, res) => res.redirect('/status'))
 app.get('/status', (req, res) => res.json({status: 0}))
 

@@ -47,7 +47,7 @@ router.post('/redeem',
   authenticateToken,
   [
     body('code').notEmpty().withMessage('激活码不能为空'),
-    body('serviceType').isIn(['gamma', 'figma', 'canva', 'premium']).withMessage('无效的服务类型')
+    body('serviceType').isIn(['claude', 'midjourney', 'universal', 'gamma', 'figma', 'canva', 'premium']).withMessage('无效的服务类型')
   ],
   validateRequest,
   async (req, res) => {
@@ -171,7 +171,7 @@ router.post('/admin/generate',
   requireAdmin,
   [
     body('count').isInt({ min: 1, max: 1000 }).withMessage('数量必须在1-1000之间'),
-    body('serviceType').isIn(['gamma', 'figma', 'canva', 'premium']).withMessage('无效的服务类型'),
+    body('serviceType').isIn(['claude', 'midjourney', 'universal', 'gamma', 'figma', 'canva', 'premium']).withMessage('无效的服务类型'),
     body('validDays').optional().isInt({ min: 1, max: 365 }).withMessage('有效天数必须在1-365之间'),
     body('maxUsagePerCode').optional().isInt({ min: 1, max: 1000 }).withMessage('每码最大使用次数必须在1-1000之间'),
     body('description').optional().isLength({ max: 200 }).withMessage('描述不能超过200字符')
@@ -306,6 +306,50 @@ router.get('/admin/statistics',
       res.status(500).json({
         status: 1,
         message: error.message || '获取激活统计失败'
+      })
+    }
+  }
+)
+
+// 获取支持的服务类型列表 (管理员)
+router.get('/admin/service-types',
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const result = await activationService.getSupportedServiceTypes()
+
+      res.json({
+        status: 0,
+        message: '获取服务类型列表成功',
+        data: result
+      })
+    } catch (error) {
+      logger.error('获取服务类型列表失败:', error)
+      res.status(500).json({
+        status: 1,
+        message: error.message || '获取服务类型列表失败'
+      })
+    }
+  }
+)
+
+// 获取服务类型列表 (公共接口，用于前端选择)
+router.get('/service-types',
+  async (req, res) => {
+    try {
+      const result = await activationService.getSupportedServiceTypes()
+
+      res.json({
+        status: 0,
+        message: '获取服务类型列表成功',
+        data: result
+      })
+    } catch (error) {
+      logger.error('获取服务类型列表失败:', error)
+      res.status(500).json({
+        status: 1,
+        message: error.message || '获取服务类型列表失败'
       })
     }
   }
